@@ -713,3 +713,15 @@ class v8OBBLoss(v8DetectionLoss):
             b, a, c = pred_dist.shape  # batch, anchors, channels
             pred_dist = pred_dist.view(b, a, 4, c // 4).softmax(3).matmul(self.proj.type(pred_dist.dtype))
         return torch.cat((dist2rbox(pred_dist, pred_angle, anchor_points), pred_angle), dim=-1)
+
+class v8CornersLoss(v8DetectionLoss):
+    def __init__(self, model):  # model must be de-paralleled
+        super().__init__(model)
+        
+
+    def preprocess(self, targets, batch_size, scale_tensor):
+        """Preprocesses the target counts and matches with the input batch size to output a tensor."""
+        raise NotImplementedError("TODO")
+
+    def bbox_decode(self, anchor_points, pred_dist, pred_angle):
+        raise NotImplementedError("TODO")

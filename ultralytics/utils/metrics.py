@@ -1287,3 +1287,60 @@ class OBBMetrics(SimpleClass):
     def curves_results(self):
         """Returns a list of curves for accessing specific metrics curves."""
         return []
+
+
+class CornersMetrics(SimpleClass):
+    def __init__(self, save_dir=Path("."), plot=False, on_plot=None, names=()) -> None:
+        self.save_dir = save_dir
+        self.plot = plot
+        self.on_plot = on_plot
+        self.names = names
+        self.corners = Metric()
+        self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
+
+    def process(self, tp, conf, pred_cls, target_cls):
+        """Process predicted results for object detection and update metrics."""
+        raise NotImplementedError("TODO: implement metrics.process")
+
+    @property
+    def keys(self):
+        """Returns a list of keys for accessing specific metrics."""
+        return ["metrics/precision(B)", "metrics/recall(B)", "metrics/mAP50(B)", "metrics/mAP50-95(B)"]
+
+    def mean_results(self):
+        """Calculate mean of detected objects & return precision, recall, mAP50, and mAP50-95."""
+        return self.corners.mean_results()
+
+    def class_result(self, i):
+        """Return the result of evaluating the performance of an object detection model on a specific class."""
+        return self.corners.class_result(i)
+
+    @property
+    def maps(self):
+        """Returns mean Average Precision (mAP) scores per class."""
+        return self.corners.maps
+
+    @property
+    def fitness(self):
+        """Returns the fitness of box object."""
+        return self.corners.fitness()
+
+    @property
+    def ap_class_index(self):
+        """Returns the average precision index per class."""
+        return self.corners.ap_class_index
+
+    @property
+    def results_dict(self):
+        """Returns dictionary of computed performance metrics and statistics."""
+        return dict(zip(self.keys + ["fitness"], self.mean_results() + [self.fitness]))
+
+    @property
+    def curves(self):
+        """Returns a list of curves for accessing specific metrics curves."""
+        return []
+
+    @property
+    def curves_results(self):
+        """Returns a list of curves for accessing specific metrics curves."""
+        return []

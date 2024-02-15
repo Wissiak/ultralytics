@@ -144,6 +144,22 @@ class OBB(Detect):
         """Decode rotated bounding boxes."""
         return dist2rbox(bboxes, self.angle, anchors, dim=1)
 
+class Corners(Detect):
+    """YOLOv8 Corners detection head. """
+
+    def __init__(self, nc=80, ne=1, ch=()):
+        """Initialize Corners with number of classes `nc` and layer channels `ch`."""
+        super().__init__(nc, ch)
+        self.ne = ne  # number of extra parameters
+        self.detect = Detect.forward
+
+        c4 = max(ch[0] // 4, self.ne)
+        self.cv4 = nn.ModuleList(nn.Sequential(Conv(x, c4, 3), Conv(c4, c4, 3), nn.Conv2d(c4, self.ne, 1)) for x in ch)
+
+    def forward(self, x):
+        """Concatenates and returns predicted bounding boxes and class probabilities."""
+        raise NotImplementedError("TODO: implement Corners (head) forward method")
+
 
 class Pose(Detect):
     """YOLOv8 Pose head for keypoints models."""
