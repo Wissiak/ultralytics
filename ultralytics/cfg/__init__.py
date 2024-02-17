@@ -31,13 +31,14 @@ from ultralytics.utils import (
 
 # Define valid tasks and modes
 MODES = "train", "val", "predict", "export", "track", "benchmark"
-TASKS = "detect", "segment", "classify", "pose", "obb"
+TASKS = "detect", "segment", "classify", "pose", "obb", "corners"
 TASK2DATA = {
     "detect": "coco8.yaml",
     "segment": "coco8-seg.yaml",
     "classify": "imagenet10",
     "pose": "coco8-pose.yaml",
     "obb": "dota8.yaml",
+    "corners": "/Users/patrick/projects/digicamp/dataset/data.yaml"
 }
 TASK2MODEL = {
     "detect": "yolov8n.pt",
@@ -45,6 +46,7 @@ TASK2MODEL = {
     "classify": "yolov8n-cls.pt",
     "pose": "yolov8n-pose.pt",
     "obb": "yolov8n-obb.pt",
+    "corners": "/Users/patrick/projects/ultralytics_git/ultralytics/cfg/models/v8/yolov8n-corners.yaml"
 }
 TASK2METRIC = {
     "detect": "metrics/mAP50-95(B)",
@@ -52,6 +54,7 @@ TASK2METRIC = {
     "classify": "metrics/accuracy_top1",
     "pose": "metrics/mAP50-95(P)",
     "obb": "metrics/mAP50-95(B)",
+    "corners": "metrics/mAP50-95(C)",
 }
 
 CLI_HELP_MSG = f"""

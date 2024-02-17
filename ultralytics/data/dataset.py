@@ -37,6 +37,7 @@ class YOLODataset(BaseDataset):
         self.use_segments = task == "segment"
         self.use_keypoints = task == "pose"
         self.use_obb = task == "obb"
+        self.use_corners = task == "corners"
         self.data = data
         assert not (self.use_segments and self.use_keypoints), "Can not use both segments and keypoints."
         super().__init__(*args, **kwargs)
@@ -69,13 +70,14 @@ class YOLODataset(BaseDataset):
                     self.label_files,
                     repeat(self.prefix),
                     repeat(self.use_keypoints),
+                    repeat(self.use_corners),
                     repeat(len(self.data["names"])),
                     repeat(nkpt),
                     repeat(ndim),
                 ),
             )
             pbar = TQDM(results, desc=desc, total=total)
-            for im_file, lb, shape, segments, keypoint, nm_f, nf_f, ne_f, nc_f, msg in pbar:
+            for im_file, lb, shape, segments, keypoint, corners, nm_f, nf_f, ne_f, nc_f, msg in pbar:
                 nm += nm_f
                 nf += nf_f
                 ne += ne_f
@@ -89,6 +91,7 @@ class YOLODataset(BaseDataset):
                             bboxes=lb[:, 1:],  # n, 4
                             segments=segments,
                             keypoints=keypoint,
+                            corners=corners, # 12, 2 or []
                             normalized=True,
                             bbox_format="xywh",
                         )
@@ -164,6 +167,7 @@ class YOLODataset(BaseDataset):
                 return_mask=self.use_segments,
                 return_keypoint=self.use_keypoints,
                 return_obb=self.use_obb,
+                return_corners=self.use_corners,
                 batch_idx=True,
                 mask_ratio=hyp.mask_ratio,
                 mask_overlap=hyp.overlap_mask,
@@ -186,9 +190,10 @@ class YOLODataset(BaseDataset):
             cls is not with bboxes now, classification and semantic segmentation need an independent cls label
             Can also support classification and semantic segmentation by adding or removing dict keys there.
         """
-        bboxes = label.pop("bboxes")
+        bboxes = label.pop("bboxes").reshape(-1, 4)
         segments = label.pop("segments", [])
         keypoints = label.pop("keypoints", None)
+        corners = label.pop("corners", None)
         bbox_format = label.pop("bbox_format")
         normalized = label.pop("normalized")
 
@@ -200,7 +205,7 @@ class YOLODataset(BaseDataset):
             segments = np.stack(resample_segments(segments, n=segment_resamples), axis=0)
         else:
             segments = np.zeros((0, segment_resamples, 2), dtype=np.float32)
-        label["instances"] = Instances(bboxes, segments, keypoints, bbox_format=bbox_format, normalized=normalized)
+        label["instances"] = Instances(bboxes, segments, keypoints, corners, bbox_format=bbox_format, normalized=normalized)
         return label
 
     @staticmethod
@@ -213,7 +218,7 @@ class YOLODataset(BaseDataset):
             value = values[i]
             if k == "img":
                 value = torch.stack(value, 0)
-            if k in ["masks", "keypoints", "bboxes", "cls", "segments", "obb"]:
+            if k in ["masks", "keypoints", "bboxes", "cls", "segments", "obb", "corners"]:
                 value = torch.cat(value, 0)
             new_batch[k] = value
         new_batch["batch_idx"] = list(new_batch["batch_idx"])

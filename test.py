@@ -6,4 +6,4 @@ model = YOLO('/Users/patrick/projects/ultralytics_git/ultralytics/cfg/models/v8/
 #model = YOLO('yolov8n-obb.yaml').load('yolov8n.pt')  # build from YAML and transfer weights
 
 # Train the model
-results = model.train(data='/Users/patrick/projects/digicamp/dataset/data.yaml', epochs=100, imgsz=640)
+results = model.train(data='/Users/patrick/projects/digicamp/dataset/data.yaml', epochs=100, imgsz=640, device="mps")

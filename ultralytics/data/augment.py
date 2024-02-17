@@ -293,7 +293,8 @@ class Mosaic(BaseMixTransform):
     def _update_labels(labels, padw, padh):
         """Update labels."""
         nh, nw = labels["img"].shape[:2]
-        labels["instances"].convert_bbox(format="xyxy")
+        if labels["instances"].corners is None:
+            labels["instances"].convert_bbox(format="xyxy")
         labels["instances"].denormalize(nw, nh)
         labels["instances"].add_padding(padw, padh)
         return labels
@@ -508,6 +509,26 @@ class RandomPerspective:
         out_mask = (xy[:, 0] < 0) | (xy[:, 1] < 0) | (xy[:, 0] > self.size[0]) | (xy[:, 1] > self.size[1])
         visible[out_mask] = 0
         return np.concatenate([xy, visible], axis=-1).reshape(n, nkpt, 3)
+    
+    def apply_corners(self, corners, M):
+        """
+        Apply affine to corners.
+
+        Args:
+            corners (ndarray): corners, [N, 4, 2].
+            M (ndarray): affine matrix.
+
+        Returns:
+            new_corners (ndarray): corners after affine, [N, 4, 2].
+        """
+        n = corners.shape[0]
+        if n == 0:
+            return corners
+        xy = np.ones((n * 12, 3), dtype=corners.dtype)
+        xy[:, :2] = corners.reshape(n * 12, 2)
+        xy = xy @ M.T
+        xy = xy[:, :2] / xy[:, 2:3]
+        return xy.reshape(n, 12, 2)
 
     def __call__(self, labels):
         """
@@ -537,27 +558,48 @@ class RandomPerspective:
 
         segments = instances.segments
         keypoints = instances.keypoints
+        corners = instances.corners
         # Update bboxes if there are segments.
         if len(segments):
             bboxes, segments = self.apply_segments(segments, M)
 
         if keypoints is not None:
             keypoints = self.apply_keypoints(keypoints, M)
-        new_instances = Instances(bboxes, segments, keypoints, bbox_format="xyxy", normalized=False)
-        # Clip
-        new_instances.clip(*self.size)
+        if corners is not None:
+            corners = self.apply_corners(corners, M)
+        new_instances = Instances(bboxes, segments, keypoints, corners, bbox_format="xyxy", normalized=False)
+
+        instances.scale(scale_w=scale, scale_h=scale, bbox_only=True)
 
         # Filter instances
-        instances.scale(scale_w=scale, scale_h=scale, bbox_only=True)
-        # Make the bboxes have the same scale with new_bboxes
-        i = self.box_candidates(
-            box1=instances.bboxes.T, box2=new_instances.bboxes.T, area_thr=0.01 if len(segments) else 0.10
-        )
+        if corners is not None:
+            i = self.corner_candidates(cls, corners)
+        else:
+            # Clip
+            new_instances.clip(*self.size)
+            # Make the bboxes have the same scale with new_bboxes
+            i = self.box_candidates(
+                box1=instances.bboxes.T, box2=new_instances.bboxes.T, area_thr=0.01 if len(segments) else 0.10
+            )
         labels["instances"] = new_instances[i]
         labels["cls"] = cls[i]
         labels["img"] = img
         labels["resized_shape"] = img.shape[:2]
         return labels
+    
+    def corner_candidates(self, cls, corners, eps=10):
+        # check only non-zero corners
+        indices = np.zeros((cls.shape[0], 12), dtype=np.int8)
+        indices[np.isin(cls, [0, 1, 3, 8]).ravel()] = np.pad(np.arange(10), (0,2), 'constant', constant_values=-1)
+        indices[np.isin(cls, [2, 4, 10]).ravel()] = np.pad(np.arange(8), (0,4), 'constant', constant_values=-1)
+        indices[np.isin(cls, [5, 6, 7, 9]).ravel()] = np.arange(12)
+
+        relevant_corners = [corner_row[indices[i][indices[i] > -1]] for i, corner_row in enumerate(corners)]
+        candidates = []
+        for relevant_corner in relevant_corners:
+            candidates.append(relevant_corner.min() >= -eps and all(relevant_corner.max(0) <= np.array(self.size[::-1])+eps))
+            
+        return candidates
 
     def box_candidates(self, box1, box2, wh_thr=2, ar_thr=100, area_thr=0.1, eps=1e-16):
         """
@@ -895,6 +937,7 @@ class Format:
         return_mask=False,
         return_keypoint=False,
         return_obb=False,
+        return_corners=False,
         mask_ratio=4,
         mask_overlap=True,
         batch_idx=True,
@@ -905,6 +948,7 @@ class Format:
         self.return_mask = return_mask  # set False when training detection only
         self.return_keypoint = return_keypoint
         self.return_obb = return_obb
+        self.return_corners = return_corners
         self.mask_ratio = mask_ratio
         self.mask_overlap = mask_overlap
         self.batch_idx = batch_idx  # keep the batch indexes
@@ -939,6 +983,8 @@ class Format:
             labels["bboxes"] = (
                 xyxyxyxy2xywhr(torch.from_numpy(instances.segments)) if len(instances.segments) else torch.zeros((0, 5))
             )
+        if self.return_corners:
+            labels["corners"] = torch.from_numpy(instances.corners)
         # Then we can use collate_fn
         if self.batch_idx:
             labels["batch_idx"] = torch.zeros(nl)

@@ -205,7 +205,7 @@ class Instances:
         This class does not perform input validation, and it assumes the inputs are well-formed.
     """
 
-    def __init__(self, bboxes, segments=None, keypoints=None, bbox_format="xywh", normalized=True) -> None:
+    def __init__(self, bboxes, segments=None, keypoints=None, corners=None, bbox_format="xywh", normalized=True) -> None:
         """
         Args:
             bboxes (ndarray): bboxes with shape [N, 4].
@@ -216,14 +216,26 @@ class Instances:
         self.keypoints = keypoints
         self.normalized = normalized
         self.segments = segments
+        self.corners = corners
 
     def convert_bbox(self, format):
         """Convert bounding box format."""
+        if self.corners is not None:
+            return
         self._bboxes.convert(format=format)
 
     @property
     def bbox_areas(self):
         """Calculate the area of bounding boxes."""
+        if self.corners is not None:
+            n, _, _ = self.corners.shape
+            areas = np.zeros(n)
+            for i in range(n):
+                areas[i] = 0.5 * np.abs(
+                    np.dot(self.corners[i, :, 0], np.roll(self.corners[i, :, 1], shift=1)) -
+                    np.dot(self.corners[i, :, 1], np.roll(self.corners[i, :, 0], shift=1))
+                )
+            return areas
         return self._bboxes.areas()
 
     def scale(self, scale_w, scale_h, bbox_only=False):
@@ -236,6 +248,9 @@ class Instances:
         if self.keypoints is not None:
             self.keypoints[..., 0] *= scale_w
             self.keypoints[..., 1] *= scale_h
+        if self.corners is not None:
+            self.corners[..., 0] *= scale_w
+            self.corners[..., 1] *= scale_h
 
     def denormalize(self, w, h):
         """Denormalizes boxes, segments, and keypoints from normalized coordinates."""
@@ -247,6 +262,9 @@ class Instances:
         if self.keypoints is not None:
             self.keypoints[..., 0] *= w
             self.keypoints[..., 1] *= h
+        if self.corners is not None:
+            self.corners[..., 0] *= w
+            self.corners[..., 1] *= h
         self.normalized = False
 
     def normalize(self, w, h):
@@ -259,6 +277,9 @@ class Instances:
         if self.keypoints is not None:
             self.keypoints[..., 0] /= w
             self.keypoints[..., 1] /= h
+        if self.corners is not None:
+            self.corners[..., 0] /= w
+            self.corners[..., 1] /= h
         self.normalized = True
 
     def add_padding(self, padw, padh):
@@ -270,6 +291,9 @@ class Instances:
         if self.keypoints is not None:
             self.keypoints[..., 0] += padw
             self.keypoints[..., 1] += padh
+        if self.corners is not None:
+            self.corners[..., 0] += padw
+            self.corners[..., 1] += padh
 
     def __getitem__(self, index) -> "Instances":
         """
@@ -289,12 +313,14 @@ class Instances:
         """
         segments = self.segments[index] if len(self.segments) else self.segments
         keypoints = self.keypoints[index] if self.keypoints is not None else None
-        bboxes = self.bboxes[index]
+        bboxes = self.bboxes[index] if len(self.bboxes) else self.bboxes
+        corners = self.corners[index] if self.corners is not None else None
         bbox_format = self._bboxes.format
         return Instances(
             bboxes=bboxes,
             segments=segments,
             keypoints=keypoints,
+            corners=corners,
             bbox_format=bbox_format,
             normalized=self.normalized,
         )
@@ -311,6 +337,8 @@ class Instances:
         self.segments[..., 1] = h - self.segments[..., 1]
         if self.keypoints is not None:
             self.keypoints[..., 1] = h - self.keypoints[..., 1]
+        if self.corners is not None:
+            self.corners[..., 1] = h - self.corners[..., 1]
 
     def fliplr(self, w):
         """Reverses the order of the bounding boxes and segments horizontally."""
@@ -324,20 +352,25 @@ class Instances:
         self.segments[..., 0] = w - self.segments[..., 0]
         if self.keypoints is not None:
             self.keypoints[..., 0] = w - self.keypoints[..., 0]
+        if self.corners is not None:
+            self.corners[..., 0] = w - self.corners[..., 0]
 
     def clip(self, w, h):
         """Clips bounding boxes, segments, and keypoints values to stay within image boundaries."""
         ori_format = self._bboxes.format
-        self.convert_bbox(format="xyxy")
-        self.bboxes[:, [0, 2]] = self.bboxes[:, [0, 2]].clip(0, w)
-        self.bboxes[:, [1, 3]] = self.bboxes[:, [1, 3]].clip(0, h)
-        if ori_format != "xyxy":
-            self.convert_bbox(format=ori_format)
-        self.segments[..., 0] = self.segments[..., 0].clip(0, w)
-        self.segments[..., 1] = self.segments[..., 1].clip(0, h)
-        if self.keypoints is not None:
-            self.keypoints[..., 0] = self.keypoints[..., 0].clip(0, w)
-            self.keypoints[..., 1] = self.keypoints[..., 1].clip(0, h)
+        if self.corners is None:
+            self.bboxes[:, [0, 2]] = self.bboxes[:, [0, 2]].clip(0, w)
+            self.bboxes[:, [1, 3]] = self.bboxes[:, [1, 3]].clip(0, h)
+            if ori_format != "xyxy":
+                self.convert_bbox(format=ori_format)
+            self.segments[..., 0] = self.segments[..., 0].clip(0, w)
+            self.segments[..., 1] = self.segments[..., 1].clip(0, h)
+            if self.keypoints is not None:
+                self.keypoints[..., 0] = self.keypoints[..., 0].clip(0, w)
+                self.keypoints[..., 1] = self.keypoints[..., 1].clip(0, h)
+        else:
+            self.corners[..., 0] = self.corners[..., 0].clip(0, w)
+            self.corners[..., 1] = self.corners[..., 1].clip(0, h)
 
     def remove_zero_area_boxes(self):
         """
@@ -352,18 +385,24 @@ class Instances:
                 self.segments = self.segments[good]
             if self.keypoints is not None:
                 self.keypoints = self.keypoints[good]
+            if self.corners is not None:
+                self.corners = self.corners[good]
         return good
 
-    def update(self, bboxes, segments=None, keypoints=None):
+    def update(self, bboxes, segments=None, keypoints=None, corners=None):
         """Updates instance variables."""
         self._bboxes = Bboxes(bboxes, format=self._bboxes.format)
         if segments is not None:
             self.segments = segments
         if keypoints is not None:
             self.keypoints = keypoints
+        if corners is not None:
+            self.corners = corners
 
     def __len__(self):
         """Return the length of the instance list."""
+        if self.corners is not None:
+            return self.corners.shape[0]
         return len(self.bboxes)
 
     @classmethod
@@ -399,7 +438,8 @@ class Instances:
         cat_boxes = np.concatenate([ins.bboxes for ins in instances_list], axis=axis)
         cat_segments = np.concatenate([b.segments for b in instances_list], axis=axis)
         cat_keypoints = np.concatenate([b.keypoints for b in instances_list], axis=axis) if use_keypoint else None
-        return cls(cat_boxes, cat_segments, cat_keypoints, bbox_format, normalized)
+        cat_corners = np.concatenate([b.corners for b in instances_list], axis=axis) if instances_list[0].corners is not None else None
+        return cls(cat_boxes, cat_segments, cat_keypoints, cat_corners, bbox_format, normalized)
 
     @property
     def bboxes(self):

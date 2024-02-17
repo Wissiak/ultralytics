@@ -158,7 +158,15 @@ class Corners(Detect):
 
     def forward(self, x):
         """Concatenates and returns predicted bounding boxes and class probabilities."""
-        raise NotImplementedError("TODO: implement Corners (head) forward method")
+        bs = x[0].shape[0]  # batch size
+        corners = torch.cat([self.cv4[i](x[i]).view(bs, self.ne, -1) for i in range(self.nl)], 2)  # Corner point logits
+        corners = corners.sigmoid()  # Apply the suitable activation function
+        if not self.training:
+            self.corners = corners
+        x = self.detect(self, x)
+        if self.training:
+            return x, corners
+        return torch.cat([x, corners], 1) if self.export else (torch.cat([x[0], corners], 1), (x[1], corners))
 
 
 class Pose(Detect):
