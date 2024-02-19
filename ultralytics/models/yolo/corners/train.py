@@ -25,5 +25,5 @@ class CornersTrainer(yolo.detect.DetectionTrainer):
 
     def get_validator(self):
         """Return an instance of CornersValidator for validation of YOLO model."""
-        self.loss_names = "corners_loss", "cls_loss", "dfl_loss" #TODO: adapt loss names
+        self.loss_names = "corners_loss", "cls_loss"
         return yolo.corners.CornersValidator(self.test_loader, save_dir=self.save_dir, args=copy(self.args))

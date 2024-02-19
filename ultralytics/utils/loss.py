@@ -713,37 +713,7 @@ class v8OBBLoss(v8DetectionLoss):
             b, a, c = pred_dist.shape  # batch, anchors, channels
             pred_dist = pred_dist.view(b, a, 4, c // 4).softmax(3).matmul(self.proj.type(pred_dist.dtype))
         return torch.cat((dist2rbox(pred_dist, pred_angle, anchor_points), pred_angle), dim=-1)
-
-class CornersLoss(nn.Module):
-    """Criterion class for computing training losses during training."""
-
-    def __init__(self):
-        """Initialize the CornersLoss module """
-        super().__init__()
-
-    def forward(self, pred_dist, pred_corners, target_corners):
-        """IoU loss."""
-        raise NotImplementedError("TODO: implement CornersLoss.forward")
-
-        return loss_iou, loss_dfl
-
-    @staticmethod
-    def _df_loss(pred_dist, target):
-        raise NotImplementedError("TODO: implement CornersLoss._df_loss")
-        """
-        Return sum of left and right DFL losses.
-
-        Distribution Focal Loss (DFL) proposed in Generalized Focal Loss
-        https://ieeexplore.ieee.org/document/9792391
-        """
-        tl = target.long()  # target left
-        tr = tl + 1  # target right
-        wl = tr - target  # weight left
-        wr = 1 - wl  # weight right
-        return (
-            F.cross_entropy(pred_dist, tl.view(-1), reduction="none").view(tl.shape) * wl
-            + F.cross_entropy(pred_dist, tr.view(-1), reduction="none").view(tl.shape) * wr
-        ).mean(-1, keepdim=True)
+    
     
 class v8CornersLoss():
     def __init__(self, model):
@@ -761,73 +731,67 @@ class v8CornersLoss():
         self.n_corners = 12
 
         self.use_dfl = m.reg_max > 1
-
-        self.loss = CornersLoss().to(device)
         
 
     def __call__(self, preds, batch):
-        """Calculate and return the loss for the YOLO model."""
+        """Calculate and return the loss for the YOLO corner model."""
         loss = torch.zeros(3, device=self.device)  # box, cls, dfl
-        feats, pred_angle = preds if isinstance(preds[0], list) else preds[1]
-        batch_size = pred_angle.shape[0]  # batch size, number of masks, mask height, mask width
-        pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
-            (self.reg_max * 4, self.nc), 1
-        )
+        feats, pred_vals = preds if isinstance(preds[0], list) else preds[1]
+        batch_size = pred_vals.shape[0]
+        pred_cls, pred_corners = pred_vals.split((1, 24), 1)
 
-        # b, grids, ..
-        pred_scores = pred_scores.permute(0, 2, 1).contiguous()
-        pred_distri = pred_distri.permute(0, 2, 1).contiguous()
-        pred_angle = pred_angle.permute(0, 2, 1).contiguous()
-
-        dtype = pred_scores.dtype
+        dtype = pred_corners.dtype
         imgsz = torch.tensor(feats[0].shape[2:], device=self.device, dtype=dtype) * self.stride[0]  # image size (h,w)
 
         # targets
         try:
-            batch_idx = batch["batch_idx"].view(-1, 1)
-            targets = torch.cat((batch_idx, batch["cls"].view(-1, 1), batch["corners"].view(-1, self.n_corners*2)), 1)
+            batch_idx = batch["batch_idx"].view(-1, 1).type(torch.int32)
+            targets = torch.cat((batch["cls"].view(-1, 1), batch["corners"].view(-1, self.n_corners*2)), 1).to(self.device)
             rw, rh = targets[:, 4] * imgsz[0].item(), targets[:, 5] * imgsz[1].item()
             targets = targets[(rw >= 2) & (rh >= 2)]  # filter rboxes of tiny size to stabilize training
-            gt_labels, gt_corners = torch.split(targets, [1, 25], 1)  # cls, corners
-            mask_gt = gt_corners.sum(1, keepdim=True).gt_(0)
+            target_cls, target_corners = torch.split(targets, [1, 24], 1)  # cls, corners
         except RuntimeError as e:
             raise TypeError(
                 "ERROR ❌ Corners dataset incorrectly formatted or not a Corners dataset."
             ) from e
+
+        # n is the number of found objects in the batch
+        # batch_idx = index to the images in the batch where an object was found (n, 1)
+        # target_cls = target classes (n, 1)
+        # target_corners = target corners (n, 24)
+
+        # pred_cls = predicted classes (batch_size, 1, 8400)
+        # pred_corners = predicted corners (batch_size, 24, 8400)
+
+        #TODO: wie komme ich von 8400 auf die tatsächlichen Objekte? Braucht es dazu eine confidence score?
+
+        loss = torch.zeros(3, device=self.device)  # corners_loss, cls_loss - corresponds to loss_names
+        
+        # Calculate corner loss (target_corners - pred_corners)
+        corner_loss = 0.0
+
+        for i in range(target_corners.shape[0]):
+            # Extract the predicted corners for the corresponding batch index
+            pred_corners_i = pred_corners[batch_idx[i]]
+
+            # Calculate Mean Squared Error (MSE) loss for the current batch index
+            corner_loss += F.mse_loss(pred_corners_i.reshape(8400, 24), target_corners[i].broadcast_to((8400, 24)))
+
+        # Average the corner loss over the batch
+        corner_loss /= target_corners.shape[0]
+
+        # Calculate class loss (target_cls - pred_cls)
+        class_loss = F.binary_cross_entropy_with_logits(pred_cls, target_cls)
+
+        # Total loss is the sum of corner loss and class loss
+        total_loss = corner_loss + class_loss
+
+        # Assign the losses to the corresponding indices in the 'loss' tensor
+        loss[0] = corner_loss.item()
+        loss[1] = class_loss.item()
+        loss[2] = total_loss.item()
+
+
+
         raise NotImplementedError("TODO: implement __call__")
-
-        # Pboxes
-        pred_bboxes = self.bbox_decode(anchor_points, pred_distri, pred_angle)  # xyxy, (b, h*w, 4)
-
-        bboxes_for_assigner = pred_bboxes.clone().detach()
-        # Only the first four elements need to be scaled
-        bboxes_for_assigner[..., :4] *= stride_tensor
-        _, target_bboxes, target_scores, fg_mask, _ = self.assigner(
-            pred_scores.detach().sigmoid(),
-            bboxes_for_assigner.type(gt_bboxes.dtype),
-            anchor_points * stride_tensor,
-            gt_labels,
-            gt_bboxes,
-            mask_gt,
-        )
-
-        target_scores_sum = max(target_scores.sum(), 1)
-
-        # Cls loss
-        # loss[1] = self.varifocal_loss(pred_scores, target_scores, target_labels) / target_scores_sum  # VFL way
-        loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
-
-        # Bbox loss
-        if fg_mask.sum():
-            target_bboxes[..., :4] /= stride_tensor
-            loss[0], loss[2] = self.bbox_loss(
-                pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask
-            )
-        else:
-            loss[0] += (pred_angle * 0).sum()
-
-        loss[0] *= self.hyp.box  # box gain
-        loss[1] *= self.hyp.cls  # cls gain
-        loss[2] *= self.hyp.dfl  # dfl gain
-
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
