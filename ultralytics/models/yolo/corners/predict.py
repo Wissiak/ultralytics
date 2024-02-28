@@ -14,4 +14,6 @@ class CornersPredictor(DetectionPredictor):
         self.args.task = "corners"
 
     def postprocess(self, preds, img, orig_imgs):
+        
+
         raise NotImplementedError("TODO: implement postprocess")

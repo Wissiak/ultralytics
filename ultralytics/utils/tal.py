@@ -66,7 +66,7 @@ class TaskAlignedAssigner(nn.Module):
                 torch.zeros_like(pd_bboxes).to(device),
                 torch.zeros_like(pd_scores).to(device),
                 torch.zeros_like(pd_scores[..., 0]).to(device),
-                torch.zeros_like(pd_scores[..., 0]).to(device),
+                torch.zeros_like(pd_scores[..., 0]).to(device).type(torch.bool),
             )
 
         mask_pos, align_metric, overlaps = self.get_pos_mask(
@@ -335,6 +335,7 @@ def dist2rbox(pred_dist, pred_angle, anchor_points, dim=-1):
     Returns:
         (torch.Tensor): Predicted rotated bounding boxes, (bs, h*w, 4).
     """
+    # pred_dist: left-top, right-bottom, ?, ?
     lt, rb = pred_dist.split(2, dim=dim)
     cos, sin = torch.cos(pred_angle), torch.sin(pred_angle)
     # (bs, h*w, 1)

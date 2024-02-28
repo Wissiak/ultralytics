@@ -3,10 +3,11 @@
 from pathlib import Path
 
 import torch
+import numpy as np
 
 from ultralytics.models.yolo.detect import DetectionValidator
 from ultralytics.utils import LOGGER, ops
-from ultralytics.utils.metrics import CornersMetrics, batch_probiou
+from ultralytics.utils.metrics import CornersMetrics, box_iou
 from ultralytics.utils.plotting import output_to_rotated_target, plot_images
 
 
@@ -17,12 +18,8 @@ class CornersValidator(DetectionValidator):
         super().__init__(dataloader, save_dir, pbar, args, _callbacks)
         self.args.task = "corners"
         self.metrics = CornersMetrics(save_dir=self.save_dir, plot=True, on_plot=self.on_plot)
-
-    def init_metrics(self, model):
-        """Initialize evaluation metrics for YOLO."""
-        super().init_metrics(model)
-        val = self.data.get(self.args.split, "")  # validation path
-        self.is_dota = isinstance(val, str) and "DOTA" in val  # is COCO
+        self.corner_thresholds = np.array([0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95])
+        self.corner_loss = torch.nn.MSELoss(reduction='none')
 
     def postprocess(self, preds):
         """Apply Non-maximum suppression to prediction outputs."""
@@ -43,24 +40,51 @@ class CornersValidator(DetectionValidator):
         Return correct prediction matrix.
 
         Args:
-            detections (torch.Tensor): Tensor of shape [N, 6] representing detections.
-                Each detection is of the format: x1, y1, x2, y2, conf, class.
+            detections (torch.Tensor): Tensor of shape [N, 6+24] representing detections.
+                Each detection is of the format: x1, y1, x2, y2, conf, class and 12 corner points (x,y).
             labels (torch.Tensor): Tensor of shape [M, 5] representing labels.
                 Each label is of the format: class, x1, y1, x2, y2.
 
         Returns:
             (torch.Tensor): Correct prediction matrix of shape [N, 10] for 10 IoU levels.
         """
-        iou = batch_probiou(gt_bboxes, torch.cat([detections[:, :4], detections[:, -1:]], dim=-1))
+        iou = box_iou(gt_bboxes, detections[:, :4])
         return self.match_predictions(detections[:, 5], gt_cls, iou)
+    
+    def _process_corners(self, detections, gt_corners):
+        correct = np.zeros((detections.shape[0], self.corner_thresholds.shape[0], )).astype(bool)
+        pred_corners = detections[:,6:].reshape(-1, 12, 2)
+        dist_per_pred = torch.sum(torch.sum(self.corner_loss(pred_corners.cpu(),gt_corners.expand(pred_corners.shape)), dim=1), dim=1)
+
+        for i, thresh in enumerate(self.corner_thresholds):
+            correct[:,i] = dist_per_pred < thresh
+
+        return torch.tensor(correct, dtype=torch.bool, device=detections.device)
+
 
     def _prepare_batch(self, si, batch):
         """Prepares and returns a batch for Corners validation."""
-        raise NotImplementedError("TODO: implement _prepare_batch")
+        pbatch = super()._prepare_batch(si, batch)
+        idx = batch["batch_idx"].cpu() == si
+        pbatch["corners"] = batch["corners"][idx]
+        #ops.scale_corners(
+        #    pbatch["corners"], pbatch["imgsz"]
+        #)  # native-space pred
+        return pbatch
 
     def _prepare_pred(self, pred, pbatch):
         """Prepares and returns a batch for Corners validation with scaled and padded bounding boxes."""
-        raise NotImplementedError("TODO: implement _prepare_pred")
+        predn = pred.clone()
+        # scale bbox predictions
+        ops.scale_boxes(
+            pbatch["imgsz"], predn[:, :4], pbatch["ori_shape"], ratio_pad=pbatch["ratio_pad"], xywh=True
+        )  # native-space pred
+        # scale corner predictions
+        #ops.scale_corners(
+        #    predn[:, 6:], pbatch["imgsz"]
+        #)  # native-space pred
+
+        return predn
 
     def plot_predictions(self, batch, preds, ni):
         """Plots predicted bounding boxes on input images and saves the result."""

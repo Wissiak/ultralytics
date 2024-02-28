@@ -76,6 +76,8 @@ class DetectionValidator(BaseValidator):
         self.seen = 0
         self.jdict = []
         self.stats = dict(tp=[], conf=[], pred_cls=[], target_cls=[])
+        if self.args.task == "corners":
+            self.stats["closs"] = []
 
     def get_desc(self):
         """Return a formatted string summarizing class metrics of YOLO model."""
@@ -124,6 +126,8 @@ class DetectionValidator(BaseValidator):
                 pred_cls=torch.zeros(0, device=self.device),
                 tp=torch.zeros(npr, self.niou, dtype=torch.bool, device=self.device),
             )
+            if self.args.task == "corners":
+                stat["closs"] = torch.zeros(0, self.corner_thresholds.shape[0], dtype=torch.bool, device=self.device)
             pbatch = self._prepare_batch(si, batch)
             cls, bbox = pbatch.pop("cls"), pbatch.pop("bbox")
             nl = len(cls)
@@ -143,11 +147,25 @@ class DetectionValidator(BaseValidator):
             stat["conf"] = predn[:, 4]
             stat["pred_cls"] = predn[:, 5]
 
+
+            #cs = np.copy(batch["corners"][0])
+            #ops.scale_corners(
+            #    cs, pbatch["imgsz"]
+            #)
+            #img = np.transpose(batch["img"][0].cpu().numpy(), (1, 2, 0)).astype(np.float32)
+            #img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            #for corner in cs:
+            #    cv2.rectangle(img, (int(corner[0]-2), int(corner[1]-2)), (int(corner[0]+2), int(corner[1]+2)), (0, 255, 0), 5)
+            #cv2.imshow("image", img)
+            #cv2.waitKey(0)
+
             # Evaluate
             if nl:
                 stat["tp"] = self._process_batch(predn, bbox, cls)
                 if self.args.plots:
                     self.confusion_matrix.process_batch(predn, bbox, cls)
+                if self.args.task == "corners":
+                    stat["closs"] = self._process_corners(predn, pbatch["corners"])
             for k in self.stats.keys():
                 self.stats[k].append(stat[k])
 

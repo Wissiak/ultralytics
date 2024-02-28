@@ -220,22 +220,22 @@ class Instances:
 
     def convert_bbox(self, format):
         """Convert bounding box format."""
-        if self.corners is not None:
-            return
+        #if self.corners is not None:
+        #    return
         self._bboxes.convert(format=format)
 
     @property
     def bbox_areas(self):
         """Calculate the area of bounding boxes."""
-        if self.corners is not None:
-            n, _, _ = self.corners.shape
-            areas = np.zeros(n)
-            for i in range(n):
-                areas[i] = 0.5 * np.abs(
-                    np.dot(self.corners[i, :, 0], np.roll(self.corners[i, :, 1], shift=1)) -
-                    np.dot(self.corners[i, :, 1], np.roll(self.corners[i, :, 0], shift=1))
-                )
-            return areas
+        #if self.corners is not None:
+        #    n, _, _ = self.corners.shape
+        #    areas = np.zeros(n)
+        #    for i in range(n):
+        #        areas[i] = 0.5 * np.abs(
+        #            np.dot(self.corners[i, :, 0], np.roll(self.corners[i, :, 1], shift=1)) -
+        #            np.dot(self.corners[i, :, 1], np.roll(self.corners[i, :, 0], shift=1))
+        #        )
+        #    return areas
         return self._bboxes.areas()
 
     def scale(self, scale_w, scale_h, bbox_only=False):
@@ -358,17 +358,16 @@ class Instances:
     def clip(self, w, h):
         """Clips bounding boxes, segments, and keypoints values to stay within image boundaries."""
         ori_format = self._bboxes.format
-        if self.corners is None:
-            self.bboxes[:, [0, 2]] = self.bboxes[:, [0, 2]].clip(0, w)
-            self.bboxes[:, [1, 3]] = self.bboxes[:, [1, 3]].clip(0, h)
-            if ori_format != "xyxy":
-                self.convert_bbox(format=ori_format)
-            self.segments[..., 0] = self.segments[..., 0].clip(0, w)
-            self.segments[..., 1] = self.segments[..., 1].clip(0, h)
-            if self.keypoints is not None:
-                self.keypoints[..., 0] = self.keypoints[..., 0].clip(0, w)
-                self.keypoints[..., 1] = self.keypoints[..., 1].clip(0, h)
-        else:
+        self.bboxes[:, [0, 2]] = self.bboxes[:, [0, 2]].clip(0, w)
+        self.bboxes[:, [1, 3]] = self.bboxes[:, [1, 3]].clip(0, h)
+        if ori_format != "xyxy":
+            self.convert_bbox(format=ori_format)
+        self.segments[..., 0] = self.segments[..., 0].clip(0, w)
+        self.segments[..., 1] = self.segments[..., 1].clip(0, h)
+        if self.keypoints is not None:
+            self.keypoints[..., 0] = self.keypoints[..., 0].clip(0, w)
+            self.keypoints[..., 1] = self.keypoints[..., 1].clip(0, h)
+        if self.corners is not None:
             self.corners[..., 0] = self.corners[..., 0].clip(0, w)
             self.corners[..., 1] = self.corners[..., 1].clip(0, h)
 
@@ -381,12 +380,12 @@ class Instances:
         good = self.bbox_areas > 0
         if not all(good):
             self._bboxes = self._bboxes[good]
+            if self.corners is not None:
+                self.corners = self.corners[good]
             if len(self.segments):
                 self.segments = self.segments[good]
             if self.keypoints is not None:
                 self.keypoints = self.keypoints[good]
-            if self.corners is not None:
-                self.corners = self.corners[good]
         return good
 
     def update(self, bboxes, segments=None, keypoints=None, corners=None):
@@ -401,8 +400,8 @@ class Instances:
 
     def __len__(self):
         """Return the length of the instance list."""
-        if self.corners is not None:
-            return self.corners.shape[0]
+        #if self.corners is not None:
+        #    return self.corners.shape[0]
         return len(self.bboxes)
 
     @classmethod

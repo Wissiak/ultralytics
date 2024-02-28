@@ -86,6 +86,24 @@ def segment2box(segment, width=640, height=640):
     )  # xyxy
 
 
+def scale_corners(corners, img1_shape):
+    """
+    Rescales corner points from the shape of the image they were originally specified in (img1_shape) to the shape of a
+    different image (img0_shape).
+
+    Args:
+        corners (torch.Tensor): the corner points of the objects in the image.
+        img1_shape (tuple): The shape of the image that the corner points are for, in the format of (height, width).
+
+    Returns:
+        corners (torch.Tensor): The scaled corner points.
+    """
+
+    corners[0::2] = corners[0::2] * img1_shape[0]
+    corners[1::2] = corners[1::2] * img1_shape[1]
+
+    return corners
+
 def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None, padding=True, xywh=False):
     """
     Rescales bounding boxes (in the format of xyxy by default) from the shape of the image they were originally

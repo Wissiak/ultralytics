@@ -72,6 +72,12 @@ class Compose:
         """Applies a series of transformations to input data."""
         for t in self.transforms:
             data = t(data)
+        # debug detections:
+        #if torch.is_tensor(data["img"]):
+        #    cv2.imshow("test", data["img"].detach().numpy().transpose(1, 2, 0))
+        #else:
+        #    cv2.imshow("test", data["img"])
+        #cv2.waitKey(0)
         return data
 
     def append(self, transform):
@@ -984,7 +990,10 @@ class Format:
                 xyxyxyxy2xywhr(torch.from_numpy(instances.segments)) if len(instances.segments) else torch.zeros((0, 5))
             )
         if self.return_corners:
-            labels["corners"] = torch.from_numpy(instances.corners)
+            if instances.corners is not None:
+                labels["corners"] = torch.from_numpy(instances.corners)
+            else:
+                labels["corners"] = torch.zeros((0, 12, 2))
         # Then we can use collate_fn
         if self.batch_idx:
             labels["batch_idx"] = torch.zeros(nl)

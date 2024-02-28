@@ -1292,15 +1292,27 @@ class OBBMetrics(SimpleClass):
 class CornersMetrics(SimpleClass):
     def __init__(self, save_dir=Path("."), plot=False, on_plot=None, names=()) -> None:
         self.save_dir = save_dir
-        self.plot = plot
-        self.on_plot = on_plot
+        self.plot = False
+        self.on_plot = False
         self.names = names
         self.corners = Metric()
         self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
 
-    def process(self, tp, conf, pred_cls, target_cls):
+    def process(self, tp, conf, pred_cls, target_cls, closs):
         """Process predicted results for object detection and update metrics."""
-        raise NotImplementedError("TODO: implement metrics.process")
+        # closs = corner loss
+        results = ap_per_class(
+            np.concatenate((tp, closs), 0),
+            conf,
+            pred_cls,
+            target_cls,
+            plot=self.plot,
+            save_dir=self.save_dir,
+            names=self.names,
+            on_plot=self.on_plot,
+        )[2:]
+        self.corners.update(results)
+        
 
     @property
     def keys(self):
