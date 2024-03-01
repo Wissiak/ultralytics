@@ -735,7 +735,7 @@ class v8CornersLoss(v8DetectionLoss):
     def __init__(self, model):
         super().__init__(model)
         self.n_corners = 12
-        self.hyp.closs = 0.01  # corner loss gain
+        self.hyp.closs = 10  # corner loss gain
         
 
     def __call__(self, preds, batch):
@@ -774,6 +774,7 @@ class v8CornersLoss(v8DetectionLoss):
         try:
             target_cls = batch["cls"].view(-1, 1).to(self.device)
             target_corners = batch["corners"].view(-1, self.n_corners*2).to(self.device)
+            target_corners = self.preprocess_corners(target_cls.view(-1), target_corners, batch_size)
             target_idx = batch["batch_idx"].view(-1).type(torch.int32)
         except RuntimeError as e:
             raise TypeError(
@@ -821,15 +822,18 @@ class v8CornersLoss(v8DetectionLoss):
             )
 
             batch_ind = torch.arange(end=batch_size, dtype=torch.int64, device=gt_labels.device)[..., None]
-            target_gt_idx = target_gt_idx + batch_ind # * self.n_max_boxes  # (b, h*w)
-            gt_corners = target_corners[target_gt_idx][fg_mask]
+            target_gt_idx = target_gt_idx + batch_ind * gt_bboxes.shape[1]  # (b, h*w)
+            gt_corners = target_corners.view(-1, target_corners.shape[-1])[target_gt_idx][fg_mask]
             # fg_mask is the nms processed mask -> it contains the indices of the boxes that are kept after nms
 
             corners = pred_corners[fg_mask]
 
-            loss[3] = torch.abs(gt_corners - corners).sum()
-            #loss_fn = nn.MSELoss()
-            #loss[3] = loss_fn(gt_corners, corners)
+            if self.device == "mps":
+                # MSE throws broadcasting error on MPS
+                loss[3] = torch.abs(gt_corners - corners).sum()
+            else:
+                loss_fn = nn.MSELoss()
+                loss[3] = loss_fn(gt_corners, corners)
 
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
@@ -837,3 +841,19 @@ class v8CornersLoss(v8DetectionLoss):
         loss[3] *= self.hyp.closs  # corners gain
         
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl, corner_loss)
+    
+    def preprocess_corners(self, target_cls, targets, batch_size):
+        """Preprocesses the target counts and matches with the input batch size to output a tensor."""
+        if targets.shape[0] == 0:
+            out = torch.zeros(batch_size, 0, 5, device=self.device)
+        else:
+            i = target_cls  # image index
+            _, counts = i.unique(return_counts=True)
+            counts = counts.to(dtype=torch.int32)
+            out = torch.zeros(batch_size, counts.max(), 24, device=self.device)
+            for j in range(batch_size):
+                matches = i == j
+                n = matches.sum()
+                if n:
+                    out[j, :n] = targets[matches]
+        return out
