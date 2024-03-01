@@ -8,7 +8,6 @@ import numpy as np
 from ultralytics.models.yolo.detect import DetectionValidator
 from ultralytics.utils import LOGGER, ops
 from ultralytics.utils.metrics import CornersMetrics, box_iou
-from ultralytics.utils.plotting import output_to_rotated_target, plot_images
 
 
 class CornersValidator(DetectionValidator):
@@ -51,15 +50,24 @@ class CornersValidator(DetectionValidator):
         iou = box_iou(gt_bboxes, detections[:, :4])
         return self.match_predictions(detections[:, 5], gt_cls, iou)
     
-    def _process_corners(self, detections, gt_corners):
-        correct = np.zeros((detections.shape[0], self.corner_thresholds.shape[0], )).astype(bool)
-        pred_corners = detections[:,6:].reshape(-1, 12, 2)
-        dist_per_pred = torch.sum(torch.sum(self.corner_loss(pred_corners.cpu(),gt_corners.expand(pred_corners.shape)), dim=1), dim=1)
+    def _process_corners(self, detections, gt_corners, gt_cls):
+        correct = torch.zeros((detections.shape[0], self.corner_thresholds.shape[0]), dtype=torch.bool, device=detections.device)
+
+        pred_classes = detections[:, 5]
+        correct_class = gt_cls == pred_classes
+        correct_class = correct_class.view(-1, 1).expand(-1, 24)
+
+        pred_corners = detections[:,6:].reshape(-1, 24)
+        pred_corners = pred_corners * correct_class.expand(-1, 24) # zero out corners of wrong classes
+        pred_corners = pred_corners.view(-1, 12, 2)
+
+
+        dist_per_pred = torch.sum(torch.sum(self.corner_loss(pred_corners,gt_corners.to(pred_corners.device).expand(pred_corners.shape)), dim=1), dim=1)
 
         for i, thresh in enumerate(self.corner_thresholds):
             correct[:,i] = dist_per_pred < thresh
 
-        return torch.tensor(correct, dtype=torch.bool, device=detections.device)
+        return correct
 
 
     def _prepare_batch(self, si, batch):

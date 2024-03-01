@@ -828,7 +828,7 @@ class v8CornersLoss(v8DetectionLoss):
 
             corners = pred_corners[fg_mask]
 
-            if self.device == "mps":
+            if self.device.type == "mps":
                 # MSE throws broadcasting error on MPS
                 loss[3] = torch.abs(gt_corners - corners).sum()
             else:

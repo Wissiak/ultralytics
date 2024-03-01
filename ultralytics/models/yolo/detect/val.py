@@ -165,7 +165,7 @@ class DetectionValidator(BaseValidator):
                 if self.args.plots:
                     self.confusion_matrix.process_batch(predn, bbox, cls)
                 if self.args.task == "corners":
-                    stat["closs"] = self._process_corners(predn, pbatch["corners"])
+                    stat["closs"] = self._process_corners(predn, pbatch["corners"], cls)
             for k in self.stats.keys():
                 self.stats[k].append(stat[k])
 
