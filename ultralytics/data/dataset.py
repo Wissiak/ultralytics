@@ -190,7 +190,7 @@ class YOLODataset(BaseDataset):
             cls is not with bboxes now, classification and semantic segmentation need an independent cls label
             Can also support classification and semantic segmentation by adding or removing dict keys there.
         """
-        bboxes = label.pop("bboxes").reshape(-1, 4)
+        bboxes = label.pop("bboxes")
         segments = label.pop("segments", [])
         keypoints = label.pop("keypoints", None)
         corners = label.pop("corners", None)

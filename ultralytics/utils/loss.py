@@ -175,8 +175,6 @@ class v8DetectionLoss:
             i = targets[:, 0]  # image index
             _, counts = i.unique(return_counts=True)
             counts = counts.to(dtype=torch.int32)
-            #if counts.max() < 0:
-            #    counts = torch.tensor([1], dtype=torch.int32, device=self.device)
             out = torch.zeros(batch_size, counts.max(), 5, device=self.device)
             for j in range(batch_size):
                 matches = i == j
@@ -215,6 +213,17 @@ class v8DetectionLoss:
         targets = torch.cat((batch["batch_idx"].view(-1, 1), batch["cls"].view(-1, 1), batch["bboxes"]), 1)
         targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
         gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
+
+        # show image with bounding box for debugging purposes
+        # img = batch["img"][0].cpu().numpy().transpose(1, 2, 0)
+        # img = img.copy()
+        # bboxes = gt_bboxes[0]
+        # import cv2
+        # for bbox in bboxes:
+        #     cv2.rectangle(img, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (0, 255, 0), 2)
+        # cv2.imshow("img", img)
+        # cv2.waitKey(0)
+
         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
 
         # Pboxes
@@ -631,7 +640,7 @@ class v8OBBLoss(v8DetectionLoss):
         """Calculate and return the loss for the YOLO model."""
         loss = torch.zeros(3, device=self.device)  # box, cls, dfl
         feats, pred_angle = preds if isinstance(preds[0], list) else preds[1]
-        batch_size = pred_angle.shape[0]  # ba.shtch size, number of masks, mask height, mask width
+        batch_size = pred_angle.shape[0]  # batch size, number of masks, mask height, mask width
         pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
             (self.reg_max * 4, self.nc), 1
         )
@@ -775,9 +784,6 @@ class v8CornersLoss(v8DetectionLoss):
         # batch_idx = index to the images in the batch where an object was found (n, 1)
         # target_cls = target classes (n, 1)
         # target_corners = target corners (n, 24)
-
-        # TODO: corners_loss, cls_loss - corresponds to loss_names
-        # TODO: make nms for corners and add to loss
 
         loss = torch.zeros(4, device=self.device)  # box, cls, dfl, corner_loss
 

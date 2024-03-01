@@ -220,22 +220,12 @@ class Instances:
 
     def convert_bbox(self, format):
         """Convert bounding box format."""
-        #if self.corners is not None:
-        #    return
         self._bboxes.convert(format=format)
 
     @property
     def bbox_areas(self):
         """Calculate the area of bounding boxes."""
-        #if self.corners is not None:
-        #    n, _, _ = self.corners.shape
-        #    areas = np.zeros(n)
-        #    for i in range(n):
-        #        areas[i] = 0.5 * np.abs(
-        #            np.dot(self.corners[i, :, 0], np.roll(self.corners[i, :, 1], shift=1)) -
-        #            np.dot(self.corners[i, :, 1], np.roll(self.corners[i, :, 0], shift=1))
-        #        )
-        #    return areas
+
         return self._bboxes.areas()
 
     def scale(self, scale_w, scale_h, bbox_only=False):
@@ -400,8 +390,6 @@ class Instances:
 
     def __len__(self):
         """Return the length of the instance list."""
-        #if self.corners is not None:
-        #    return self.corners.shape[0]
         return len(self.bboxes)
 
     @classmethod

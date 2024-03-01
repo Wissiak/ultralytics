@@ -69,7 +69,7 @@ class CornersValidator(DetectionValidator):
         pbatch["corners"] = batch["corners"][idx]
         #ops.scale_corners(
         #    pbatch["corners"], pbatch["imgsz"]
-        #)  # native-space pred
+        #)
         return pbatch
 
     def _prepare_pred(self, pred, pbatch):
@@ -82,7 +82,7 @@ class CornersValidator(DetectionValidator):
         # scale corner predictions
         #ops.scale_corners(
         #    predn[:, 6:], pbatch["imgsz"]
-        #)  # native-space pred
+        #)
 
         return predn
 

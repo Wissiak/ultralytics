@@ -14,6 +14,11 @@ class CornersPredictor(DetectionPredictor):
         self.args.task = "corners"
 
     def postprocess(self, preds, img, orig_imgs):
-        
-
-        raise NotImplementedError("TODO: implement postprocess")
+        return ops.non_max_suppression(
+            preds,
+            self.args.conf,
+            self.args.iou,
+            agnostic=self.args.agnostic_nms,
+            max_det=self.args.max_det,
+            classes=self.args.classes,
+        )

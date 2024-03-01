@@ -299,8 +299,7 @@ class Mosaic(BaseMixTransform):
     def _update_labels(labels, padw, padh):
         """Update labels."""
         nh, nw = labels["img"].shape[:2]
-        if labels["instances"].corners is None:
-            labels["instances"].convert_bbox(format="xyxy")
+        labels["instances"].convert_bbox(format="xyxy")
         labels["instances"].denormalize(nw, nh)
         labels["instances"].add_padding(padw, padh)
         return labels
@@ -578,15 +577,13 @@ class RandomPerspective:
         instances.scale(scale_w=scale, scale_h=scale, bbox_only=True)
 
         # Filter instances
+        new_instances.clip(*self.size)
+        # Make the bboxes have the same scale with new_bboxes
+        i = self.box_candidates(
+            box1=instances.bboxes.T, box2=new_instances.bboxes.T, area_thr=0.01 if len(segments) else 0.10
+        )
         if corners is not None:
             i = self.corner_candidates(cls, corners)
-        else:
-            # Clip
-            new_instances.clip(*self.size)
-            # Make the bboxes have the same scale with new_bboxes
-            i = self.box_candidates(
-                box1=instances.bboxes.T, box2=new_instances.bboxes.T, area_thr=0.01 if len(segments) else 0.10
-            )
         labels["instances"] = new_instances[i]
         labels["cls"] = cls[i]
         labels["img"] = img
