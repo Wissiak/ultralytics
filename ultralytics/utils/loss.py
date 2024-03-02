@@ -748,6 +748,7 @@ class v8CornersLoss(v8DetectionLoss):
         # 75 = 64 (4*16, channel) + 11 (11 corners)
 
         feats, pred_corners = preds if isinstance(preds[0], list) else preds[1]
+        pred_corners = pred_corners.type(torch.float32)
 
         #bbox_loss = v8DetectionLoss.__call__(self, feats, batch)
 
@@ -828,12 +829,8 @@ class v8CornersLoss(v8DetectionLoss):
 
             corners = pred_corners[fg_mask]
 
-            if self.device.type == "mps":
-                # MSE throws broadcasting error on MPS
-                loss[3] = torch.abs(gt_corners - corners).sum()
-            else:
-                loss_fn = nn.MSELoss()
-                loss[3] = loss_fn(gt_corners, corners)
+            loss_fn = nn.MSELoss()
+            loss[3] = loss_fn(gt_corners, corners)
 
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain

@@ -251,6 +251,7 @@ def non_max_suppression(
 
     t = time.time()
     output = [torch.zeros((0, 6 + nm), device=prediction.device)] * bs
+    p_masks = [[]] * prediction.shape[0]
     for xi, x in enumerate(prediction):  # image index, image inference
         # Apply constraints
         # x[((x[:, 2:4] < min_wh) | (x[:, 2:4] > max_wh)).any(1), 4] = 0  # width-height
@@ -313,11 +314,12 @@ def non_max_suppression(
         #         i = i[iou.sum(1) > 1]  # require redundancy
 
         output[xi] = x[i]
+        p_masks[xi].append(torch.nonzero(xc)[:,1][i])
         if (time.time() - t) > time_limit:
             LOGGER.warning(f"WARNING ⚠️ NMS time limit {time_limit:.3f}s exceeded")
             break  # time limit exceeded
 
-    return output
+    return output, p_masks
 
 
 def clip_boxes(boxes, shape):

@@ -8,13 +8,14 @@ model = YOLO('/Users/patrick/projects/ultralytics_git/ultralytics/cfg/models/v8/
 # Train the model
 results = model.train(
     data='/Users/patrick/projects/digicamp/dataset/data.yaml', 
+    #weights='yolov8n.pt',
     epochs=100, 
     patience=15, 
     imgsz=640, 
     device="mps",
     task='detect',
     mode='train',
-    augment=True,
+    augment=False,
     batch=16, 
     save_period=1, 
     deterministic=False,
