@@ -844,10 +844,14 @@ class v8CornersLoss(v8DetectionLoss):
             gt_corners = target_corners.view(-1, target_corners.shape[-1])[target_gt_idx][fg_mask]
             # fg_mask is the nms processed mask -> it contains the indices of the boxes that are kept after nms
 
-            corners = pred_corners[fg_mask] # TODO: the prediction is always the same for each point!
+            gt_gt0_mask = torch.count_nonzero(gt_corners, dim=1) > 0
+            gt_corners = gt_corners[gt_gt0_mask]
 
-            loss_fn = nn.MSELoss()
-            loss[3] = loss_fn(gt_corners, corners)
+            if len(gt_corners) > 0:
+                corners = pred_corners[fg_mask][gt_gt0_mask] # TODO: the prediction is always the same for each point!
+
+                loss_fn = nn.MSELoss()
+                loss[3] = loss_fn(gt_corners, corners)
 
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
