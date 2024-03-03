@@ -32,7 +32,7 @@ class CornersValidator(DetectionValidator):
             agnostic=self.args.single_cls,
             max_det=self.args.max_det,
             rotated=True,
-        )
+        )[0]
 
     def _process_batch(self, detections, gt_bboxes, gt_cls):
         """
