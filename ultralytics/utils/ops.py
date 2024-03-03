@@ -99,8 +99,8 @@ def scale_corners(corners, img1_shape):
         corners (torch.Tensor): The scaled corner points.
     """
 
-    corners[0::2] = corners[0::2] * img1_shape[0]
-    corners[1::2] = corners[1::2] * img1_shape[1]
+    corners[:,0::2] = corners[:,0::2] * img1_shape[:,0]
+    corners[:,1::2] = corners[:,1::2] * img1_shape[:,1]
 
     return corners
 

@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-model = YOLO('/Users/patrick/Downloads/epoch19.pt')
+model = YOLO('/Users/patrick/Downloads/epoch25.pt')
 #model = YOLO('/opt/homebrew/runs/detect/train54/weights/last.pt')
 
 #model(source="input.mp4", show=True, conf=0.1, save=True, device='mps')
@@ -18,15 +18,18 @@ for i in range(1):
         for r in results:
             
             boxes = r.boxes
-            for box in boxes:
+            for i, box in enumerate(boxes):
                 
                 b = box.xyxy[0].numpy()  # get box coordinates in (left, top, right, bottom) format
                 c = int(box.cls.numpy()[0])
-                img = cv2.rectangle(img, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), colors[c], 2)
-            
+                cv2.rectangle(img, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), colors[c], 2)
+                
+                cv2.putText(img, f'Class {c}', (10, 30+50*i), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1, cv2.LINE_AA)
+
             for corner in r.corners:
-                for c in corner:
-                    img = cv2.circle(img, (int(c[0]), int(c[1])), 5, (0, 0, 255), -1)
+                for c_i in range(0, 12, 2):
+                    cv2.circle(img, (int(corner[c_i][0]), int(corner[c_i][1])), 5, colors[c_i], -1)
+                    cv2.circle(img, (int(corner[c_i+1][0]), int(corner[c_i+1][1])), 5, colors[c_i], -1)
                 
         cv2.imshow(f'Class {j}, image {i}', img)
         cv2.waitKey(0)

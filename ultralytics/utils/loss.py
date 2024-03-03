@@ -735,7 +735,7 @@ class v8CornersLoss(v8DetectionLoss):
     def __init__(self, model):
         super().__init__(model)
         self.n_corners = 12
-        self.hyp.closs = 10  # corner loss gain
+        self.hyp.closs = 20  # corner loss gain
         
 
     def __call__(self, preds, batch):
@@ -775,6 +775,23 @@ class v8CornersLoss(v8DetectionLoss):
         try:
             target_cls = batch["cls"].view(-1, 1).to(self.device)
             target_corners = batch["corners"].view(-1, self.n_corners*2).to(self.device)
+
+            # show image with corner points for debugging purposes
+            # img = batch["img"][0].cpu().numpy().transpose(1, 2, 0)
+            # img = img.copy()
+            # corners = target_corners[0].cpu().numpy().reshape(-1, 2)
+            # bbox = batch["bboxes"][0]
+            # center_x, center_y, w, h = bbox.numpy() * 640
+            # x = center_x - w/2
+            # y = center_y - h/2
+            # corners = corners * [w, h] + [x, y]
+            # import cv2
+            # cv2.rectangle(img, (int(x), int(y)), (int(x+w), int(y+h)), (0, 255, 0), 2)
+            # for i in range(0, 12, 1):
+            #     cv2.circle(img, (int(corners[i][0]), int(corners[i][1])), 5, (0, 0, 255), -1)
+            # cv2.imshow("img", img)
+            # cv2.waitKey(0)
+
             target_corners = self.preprocess_corners(target_cls.view(-1), target_corners, batch_size)
             target_idx = batch["batch_idx"].view(-1).type(torch.int32)
         except RuntimeError as e:
@@ -827,7 +844,7 @@ class v8CornersLoss(v8DetectionLoss):
             gt_corners = target_corners.view(-1, target_corners.shape[-1])[target_gt_idx][fg_mask]
             # fg_mask is the nms processed mask -> it contains the indices of the boxes that are kept after nms
 
-            corners = pred_corners[fg_mask]
+            corners = pred_corners[fg_mask] # TODO: the prediction is always the same for each point!
 
             loss_fn = nn.MSELoss()
             loss[3] = loss_fn(gt_corners, corners)

@@ -39,10 +39,11 @@ class CornersPredictor(DetectionPredictor):
         results = []
         for i, bbox in enumerate(bboxes):
             orig_img = orig_imgs[i]
-            bbox[:, :4] = ops.scale_boxes(img.shape[2:], bbox[:, :4], orig_img.shape)
+            bbox[:, :4] = ops.scale_boxes(img.shape[2:], bbox[:, :4], orig_img.shape) # xy, xy
             img_path = self.batch[0][i]
             corners = nms_corners[i].reshape(-1, 12, 2)
-            corners = ops.scale_corners(corners, orig_img.shape)
+            corners = ops.scale_corners(corners, bbox[:,2:4]- bbox[:,:2])
+
             corners += bbox[:,:2].view(bbox[:,:2].shape[0], 1, bbox[:,:2].shape[1]).broadcast_to(corners.shape) # make relative to bounding box
             results.append(Results(orig_img, path=img_path, names=self.model.names, boxes=bbox, corners=corners))
         return results
