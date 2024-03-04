@@ -735,7 +735,7 @@ class v8CornersLoss(v8DetectionLoss):
     def __init__(self, model):
         super().__init__(model)
         self.n_corners = 12
-        self.hyp.closs = 20  # corner loss gain
+        self.hyp.closs = 0.1  # corner loss gain
         
 
     def __call__(self, preds, batch):
@@ -804,7 +804,7 @@ class v8CornersLoss(v8DetectionLoss):
         # target_cls = target classes (n, 1)
         # target_corners = target corners (n, 24)
 
-        loss = torch.zeros(4, device=self.device)  # box, cls, dfl, corner_loss
+        loss = torch.zeros(27, device=self.device)  # box, cls, dfl, corner_loss
 
         # Targets
         targets = torch.cat((batch["batch_idx"].view(-1, 1), batch["cls"].view(-1, 1), batch["bboxes"]), 1)
@@ -850,13 +850,12 @@ class v8CornersLoss(v8DetectionLoss):
             if len(gt_corners) > 0:
                 corners = pred_corners[fg_mask][gt_gt0_mask] # TODO: the prediction is always the same for each point!
 
-                loss_fn = nn.MSELoss()
-                loss[3] = loss_fn(gt_corners, corners)
+                loss[-24:] = torch.sum(torch.abs(gt_corners - corners), dim=0)
 
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
-        loss[3] *= self.hyp.closs  # corners gain
+        loss[-24:] *= self.hyp.closs  # corners gain
         
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl, corner_loss)
     
