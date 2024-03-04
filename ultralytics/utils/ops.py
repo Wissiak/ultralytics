@@ -99,8 +99,7 @@ def scale_corners(corners, img1_shape):
         corners (torch.Tensor): The scaled corner points.
     """
 
-    corners[:,0::2] = corners[:,0::2] * img1_shape[:,0]
-    corners[:,1::2] = corners[:,1::2] * img1_shape[:,1]
+    corners *= img1_shape
 
     return corners
 
@@ -193,6 +192,7 @@ def non_max_suppression(
     max_wh=7680,
     in_place=True,
     rotated=False,
+    need_mask=False
 ):
     """
     Perform non-maximum suppression (NMS) on a set of boxes, with support for masks and multiple labels per box.
@@ -314,12 +314,15 @@ def non_max_suppression(
         #         i = i[iou.sum(1) > 1]  # require redundancy
 
         output[xi] = x[i]
-        p_masks[xi].append(torch.nonzero(xc)[:,1][i])
+        if need_mask:
+            p_masks[xi].append(torch.nonzero(xc)[:,1][i])
         if (time.time() - t) > time_limit:
             LOGGER.warning(f"WARNING ⚠️ NMS time limit {time_limit:.3f}s exceeded")
             break  # time limit exceeded
 
-    return output, p_masks
+    if need_mask:
+        return output, p_masks
+    return output
 
 
 def clip_boxes(boxes, shape):

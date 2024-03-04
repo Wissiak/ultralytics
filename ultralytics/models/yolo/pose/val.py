@@ -72,7 +72,7 @@ class PoseValidator(DetectionValidator):
             agnostic=self.args.single_cls,
             max_det=self.args.max_det,
             nc=self.nc,
-        )[0]
+        )
 
     def init_metrics(self, model):
         """Initiate pose estimation metrics for YOLO model."""

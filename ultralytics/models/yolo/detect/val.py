@@ -93,7 +93,7 @@ class DetectionValidator(BaseValidator):
             multi_label=True,
             agnostic=self.args.single_cls,
             max_det=self.args.max_det,
-        )[0]
+        )
 
     def _prepare_batch(self, si, batch):
         """Prepares a batch of images and annotations for validation."""

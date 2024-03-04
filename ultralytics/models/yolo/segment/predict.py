@@ -27,7 +27,7 @@ class SegmentationPredictor(DetectionPredictor):
 
     def postprocess(self, preds, img, orig_imgs):
         """Applies non-max suppression and processes detections for each image in an input batch."""
-        p, _ = ops.non_max_suppression(
+        p = ops.non_max_suppression(
             preds[0],
             self.args.conf,
             self.args.iou,
