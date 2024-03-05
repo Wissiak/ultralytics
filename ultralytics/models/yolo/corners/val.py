@@ -17,8 +17,7 @@ class CornersValidator(DetectionValidator):
         super().__init__(dataloader, save_dir, pbar, args, _callbacks)
         self.args.task = "corners"
         self.metrics = CornersMetrics(save_dir=self.save_dir, plot=True, on_plot=self.on_plot)
-        self.corner_thresholds = np.array([0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95])
-        self.corner_loss = torch.nn.MSELoss(reduction='none')
+        self.corner_thresholds = 1 - np.array([0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95])
 
     def postprocess(self, preds):
         """Apply Non-maximum suppression to prediction outputs."""
@@ -62,7 +61,7 @@ class CornersValidator(DetectionValidator):
 
         gt_corners = gt_corners.view(-1, 24)
 
-        dist_per_pred = torch.sum(self.corner_loss(pred_corners,gt_corners.to(pred_corners.device).expand(pred_corners.shape)), dim=1)
+        dist_per_pred = torch.sum(torch.abs(pred_corners - gt_corners.to(pred_corners.device).expand(pred_corners.shape)), dim=1)
 
         for i, thresh in enumerate(self.corner_thresholds):
             correct[:,i] = dist_per_pred < thresh

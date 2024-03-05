@@ -175,7 +175,7 @@ class v8DetectionLoss:
             i = targets[:, 0]  # image index
             _, counts = i.unique(return_counts=True)
             counts = counts.to(dtype=torch.int32)
-            out = torch.zeros(batch_size, counts.max(), 5, device=self.device)
+            out = torch.ones(batch_size, counts.max(), 5, device=self.device) * -1
             for j in range(batch_size):
                 matches = i == j
                 n = matches.sum()
@@ -735,7 +735,7 @@ class v8CornersLoss(v8DetectionLoss):
     def __init__(self, model):
         super().__init__(model)
         self.n_corners = 12
-        self.hyp.closs = 0.1  # corner loss gain
+        self.hyp.closs = 1  # corner loss gain
         
 
     def __call__(self, preds, batch):
@@ -795,9 +795,9 @@ class v8CornersLoss(v8DetectionLoss):
             # cv2.waitKey(0)
 
             target_corners = self.preprocess_corners(target_cls.view(-1), target_corners, batch_size)
-            target_idx = batch["batch_idx"].view(-1).type(torch.int32)
+            #target_idx = batch["batch_idx"].view(-1).type(torch.int32)
 
-            del target_cls, target_idx
+            del target_cls
         except RuntimeError as e:
             raise TypeError(
                 "ERROR ❌ Corners dataset incorrectly formatted or not a Corners dataset."
@@ -832,7 +832,7 @@ class v8CornersLoss(v8DetectionLoss):
             mask_gt,
         )
 
-        del gt_labels, mask_gt
+        del gt_labels
 
         target_scores_sum = max(target_scores.sum(), 1)
 
@@ -849,16 +849,16 @@ class v8CornersLoss(v8DetectionLoss):
 
             batch_ind = torch.arange(end=batch_size, dtype=torch.int64, device=target_bboxes.device)[..., None]
             target_gt_idx = target_gt_idx + batch_ind * gt_bboxes.shape[1]  # (b, h*w)
-            gt_corners = target_corners.view(-1, target_corners.shape[-1])[target_gt_idx][fg_mask]
+            gt_corners = target_corners.view(-1, target_corners.shape[-1])[target_gt_idx]
             # fg_mask is the nms processed mask -> it contains the indices of the boxes that are kept after nms
 
-            corners = pred_corners[fg_mask] # TODO: the prediction is always the same for each point!
-
-            loss[-24:] = torch.sum(torch.abs(gt_corners - corners), dim=0)
+            # TODO: check gt_corners and pred_corners for pretrained model
+            weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
+            loss[-24:] = torch.sum(torch.abs(gt_corners[fg_mask] - pred_corners[fg_mask])*weight, dim=0)
             
-            del gt_corners, corners, batch_ind
+            del gt_corners, batch_ind
 
-        del pred_corners, target_corners, pred_distri, pred_scores, pred_bboxes, target_bboxes, target_scores, fg_mask, target_gt_idx, gt_bboxes
+        del pred_corners, target_corners, pred_distri, pred_scores, pred_bboxes, target_bboxes, target_scores, fg_mask, target_gt_idx, gt_bboxes, mask_gt
 
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
