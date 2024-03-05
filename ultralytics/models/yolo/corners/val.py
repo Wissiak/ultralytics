@@ -31,7 +31,6 @@ class CornersValidator(DetectionValidator):
             multi_label=True,
             agnostic=self.args.single_cls,
             max_det=self.args.max_det,
-            rotated=True,
         )
 
     def _process_batch(self, detections, gt_bboxes, gt_cls):
@@ -59,10 +58,11 @@ class CornersValidator(DetectionValidator):
 
         pred_corners = detections[:,6:].reshape(-1, 24)
         pred_corners = pred_corners * correct_class.expand(-1, 24) # zero out corners of wrong classes
-        pred_corners = pred_corners.view(-1, 12, 2)
+        pred_corners = pred_corners.view(-1, 24)
 
+        gt_corners = gt_corners.view(-1, 24)
 
-        dist_per_pred = torch.sum(torch.sum(self.corner_loss(pred_corners,gt_corners.to(pred_corners.device).expand(pred_corners.shape)), dim=1), dim=1)
+        dist_per_pred = torch.sum(self.corner_loss(pred_corners,gt_corners.to(pred_corners.device).expand(pred_corners.shape)), dim=1)
 
         for i, thresh in enumerate(self.corner_thresholds):
             correct[:,i] = dist_per_pred < thresh

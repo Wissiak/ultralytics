@@ -748,7 +748,7 @@ class v8CornersLoss(v8DetectionLoss):
         # 75 = 64 (4*16, channel) + 11 (11 corners)
 
         feats, pred_corners = preds if isinstance(preds[0], list) else preds[1]
-        pred_corners = pred_corners.type(torch.float32)
+        pred_corners = pred_corners.type(torch.float32).detach()
 
         #bbox_loss = v8DetectionLoss.__call__(self, feats, batch)
 
@@ -770,6 +770,8 @@ class v8CornersLoss(v8DetectionLoss):
         dtype = pred_scores.dtype
         imgsz = torch.tensor(feats[0].shape[2:], device=self.device, dtype=dtype) * self.stride[0]  # image size (h,w)
         anchor_points, stride_tensor = make_anchors(feats, self.stride, 0.5)
+
+        del feats
 
         # targets
         try:
@@ -794,6 +796,8 @@ class v8CornersLoss(v8DetectionLoss):
 
             target_corners = self.preprocess_corners(target_cls.view(-1), target_corners, batch_size)
             target_idx = batch["batch_idx"].view(-1).type(torch.int32)
+
+            del target_cls, target_idx
         except RuntimeError as e:
             raise TypeError(
                 "ERROR ❌ Corners dataset incorrectly formatted or not a Corners dataset."
@@ -814,6 +818,8 @@ class v8CornersLoss(v8DetectionLoss):
         gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
 
+        del targets
+
         # Pboxes
         pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
 
@@ -825,6 +831,8 @@ class v8CornersLoss(v8DetectionLoss):
             gt_bboxes,
             mask_gt,
         )
+
+        del gt_labels, mask_gt
 
         target_scores_sum = max(target_scores.sum(), 1)
 
@@ -839,18 +847,18 @@ class v8CornersLoss(v8DetectionLoss):
                 pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask
             )
 
-            batch_ind = torch.arange(end=batch_size, dtype=torch.int64, device=gt_labels.device)[..., None]
+            batch_ind = torch.arange(end=batch_size, dtype=torch.int64, device=target_bboxes.device)[..., None]
             target_gt_idx = target_gt_idx + batch_ind * gt_bboxes.shape[1]  # (b, h*w)
             gt_corners = target_corners.view(-1, target_corners.shape[-1])[target_gt_idx][fg_mask]
             # fg_mask is the nms processed mask -> it contains the indices of the boxes that are kept after nms
 
-            gt_gt0_mask = torch.count_nonzero(gt_corners, dim=1) > 0
-            gt_corners = gt_corners[gt_gt0_mask]
+            corners = pred_corners[fg_mask] # TODO: the prediction is always the same for each point!
 
-            if len(gt_corners) > 0:
-                corners = pred_corners[fg_mask][gt_gt0_mask] # TODO: the prediction is always the same for each point!
+            loss[-24:] = torch.sum(torch.abs(gt_corners - corners), dim=0)
+            
+            del gt_corners, corners, batch_ind
 
-                loss[-24:] = torch.sum(torch.abs(gt_corners - corners), dim=0)
+        del pred_corners, target_corners, pred_distri, pred_scores, pred_bboxes, target_bboxes, target_scores, fg_mask, target_gt_idx, gt_bboxes
 
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
