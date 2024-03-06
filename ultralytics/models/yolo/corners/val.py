@@ -48,7 +48,7 @@ class CornersValidator(DetectionValidator):
         iou = box_iou(gt_bboxes, detections[:, :4])
         return self.match_predictions(detections[:, 5], gt_cls, iou)
     
-    def _process_corners(self, detections, gt_corners, gt_cls):
+    def _process_corners(self, detections, gt_corners, gt_cls, conf):
         correct = torch.zeros((detections.shape[0], self.corner_thresholds.shape[0]), dtype=torch.bool, device=detections.device)
 
         pred_classes = detections[:, 5]
@@ -61,7 +61,8 @@ class CornersValidator(DetectionValidator):
 
         gt_corners = gt_corners.view(-1, 24)
 
-        dist_per_pred = torch.sum(torch.abs(pred_corners - gt_corners.to(pred_corners.device).expand(pred_corners.shape)), dim=1)
+        #dist_per_pred = torch.sum(torch.abs(pred_corners - gt_corners.to(pred_corners.device).expand(pred_corners.shape)), dim=1)
+        dist_per_pred = torch.sum(torch.sqrt(torch.sum((gt_corners.to(pred_corners.device).expand(pred_corners.shape).view(-1,12,2) - pred_corners.view(-1,12,2)) ** 2, dim=-1)) * conf, 1)
 
         for i, thresh in enumerate(self.corner_thresholds):
             correct[:,i] = dist_per_pred < thresh
