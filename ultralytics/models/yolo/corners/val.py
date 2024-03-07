@@ -62,7 +62,7 @@ class CornersValidator(DetectionValidator):
         gt_corners = gt_corners.view(-1, 24)
 
         #dist_per_pred = torch.sum(torch.abs(pred_corners - gt_corners.to(pred_corners.device).expand(pred_corners.shape)), dim=1)
-        dist_per_pred = torch.sum(torch.sqrt(torch.sum((gt_corners.to(pred_corners.device).expand(pred_corners.shape).view(-1,12,2) - pred_corners.view(-1,12,2)) ** 2, dim=-1)) * conf, 1)
+        dist_per_pred = torch.sum(torch.sqrt(torch.sum((gt_corners.to(pred_corners.device).expand(pred_corners.shape).view(-1,12,2) - pred_corners.view(-1,12,2)) ** 2, dim=-1)), 1)
 
         for i, thresh in enumerate(self.corner_thresholds):
             correct[:,i] = dist_per_pred < thresh
