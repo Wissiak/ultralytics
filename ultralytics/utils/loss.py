@@ -214,6 +214,9 @@ class v8DetectionLoss:
         targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
         gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
 
+        # gt_bboxes.shape: torch.Size([4, 8, 4])
+        # gt_labels.shape: torch.Size([4, 8, 1])
+
         # show image with bounding box for debugging purposes
         # img = batch["img"][0].cpu().numpy().transpose(1, 2, 0)
         # img = img.copy()
@@ -775,7 +778,7 @@ class v8CornersLoss(v8DetectionLoss):
 
         # targets
         try:
-            target_cls = batch["cls"].view(-1, 1).to(self.device)
+            #target_cls = batch["cls"].view(-1, 1).to(self.device)
             target_corners = batch["corners"].view(-1, self.n_corners*2).to(self.device)
 
             # show image with corner points for debugging purposes
@@ -794,10 +797,9 @@ class v8CornersLoss(v8DetectionLoss):
             # cv2.imshow("img", img)
             # cv2.waitKey(0)
 
-            target_corners = self.preprocess_corners(target_cls.view(-1), target_corners, batch_size)
+            target_corners = self.preprocess_corners(batch["batch_idx"], target_corners, batch_size)
             #target_idx = batch["batch_idx"].view(-1).type(torch.int32)
 
-            del target_cls
         except RuntimeError as e:
             raise TypeError(
                 "ERROR ❌ Corners dataset incorrectly formatted or not a Corners dataset."
@@ -806,14 +808,12 @@ class v8CornersLoss(v8DetectionLoss):
         # n is the number of found cube nets in the batch
         # batch_idx = index to the images in the batch where an object was found (n, 1)
         # target_cls = target classes (n, 1)
-        # target_corners = target corners (n, 24)
+        # target_corners = target corners (batch_size, n, 24)
 
-        loss = torch.zeros(15, device=self.device)  # box, cls, dfl, corner_loss (12)
+        loss = torch.zeros(27, device=self.device)  # box, cls, dfl, corner_loss (2*12)
 
         # Targets
         targets = torch.cat((batch["batch_idx"].view(-1, 1), batch["cls"].view(-1, 1), batch["bboxes"]), 1)
-        rw, rh = targets[:, 4] * imgsz[0].item(), targets[:, 5] * imgsz[1].item()
-        targets = targets[(rw >= 2) & (rh >= 2)]  # filter rboxes of tiny size to stabilize training
         targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
         gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
@@ -852,9 +852,8 @@ class v8CornersLoss(v8DetectionLoss):
             gt_corners = target_corners.view(-1, target_corners.shape[-1])[target_gt_idx]
             # fg_mask is the nms processed mask -> it contains the indices of the boxes that are kept after nms
 
-            # TODO: check gt_corners and pred_corners for pretrained model
             weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
-            loss[-12:] = torch.sum(torch.sqrt(torch.sum((gt_corners[fg_mask].view(-1,12,2) - pred_corners[fg_mask].view(-1,12,2)) ** 2, dim=-1)) * weight, 0)
+            loss[-24:] = torch.sum(torch.abs((gt_corners[fg_mask] - pred_corners[fg_mask]) * weight), dim=0)
             
             del gt_corners, batch_ind
 
@@ -863,22 +862,21 @@ class v8CornersLoss(v8DetectionLoss):
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
-        loss[-12:] *= self.hyp.closs  # corners gain
+        loss[-24:] *= self.hyp.closs  # corners gain
         
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl, corner_loss)
     
-    def preprocess_corners(self, target_cls, targets, batch_size):
+    def preprocess_corners(self, batch_idx, targets, batch_size):
         """Preprocesses the target counts and matches with the input batch size to output a tensor."""
         if targets.shape[0] == 0:
             out = torch.zeros(batch_size, 0, 5, device=self.device)
         else:
-            i = target_cls  # image index
-            _, counts = i.unique(return_counts=True)
+            _, counts = batch_idx.unique(return_counts=True)
             counts = counts.to(dtype=torch.int32)
-            out = torch.zeros(batch_size, counts.max(), 24, device=self.device)
+            out = torch.ones(batch_size, counts.max(), 24, device=self.device) * -1
             for j in range(batch_size):
-                matches = i == j
-                n = matches.sum()
+                matches = batch_idx == j
+                n = matches.sum() # n = number of matches in the image
                 if n:
                     out[j, :n] = targets[matches]
         return out

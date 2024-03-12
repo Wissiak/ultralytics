@@ -5,7 +5,18 @@ from ultralytics.utils.ops import scale_image
 import cv2
 import numpy as np
 from sklearn.cluster import KMeans
-
+pts1_w = np.array([
+    [0, 4, 0.1], # 0
+    [0, 3, 0.1], # 1
+    [1, 3, 0.1], # 2
+    [1, 0, 0.1], # 3
+    [2, 0, 0.1], # 4
+    [2, 1, 0.1], # 5
+    [3, 1, 0.1], # 6
+    [3, 2, 0.1], # 7
+    [2, 2, 0.1], # 8
+    [2, 4, 0.1], # 9
+])
 
 # def predict_on_image(model, img, conf):
 #     result = model(img, conf=conf)[0]
@@ -129,8 +140,16 @@ for j in range(11):
                     print(f"Got unprecise corners for {j}-{i}")
 
                 image_with_corners = img.copy()
-                for corner in cluster_centers:
+                for c_i, corner in enumerate(cluster_centers):
                     cv2.circle(image_with_corners, tuple(map(int, corner.ravel())), 5, (0, 0, 255), -1)
+                    #cv2.putText(image_with_corners, str(c_i), tuple(map(int, corner.ravel())), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
+                H, mask = cv2.findHomography(cluster_centers, pts1_w[:, :2], cv2.RANSAC, 20.0)
+                if not all(mask):
+                    print(f"Got bad homography for {j}-{i}")
+                
+                transformed_corners = cv2.perspectiveTransform(pts1_w[:,:2].reshape(-1,1,2)*640, H)
+                cv2.polylines(image_with_corners, [np.int32(transformed_corners)], True, (0, 0, 255), 3, cv2.LINE_AA)
 
                 # Display or save the results as needed
 

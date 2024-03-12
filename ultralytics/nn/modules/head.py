@@ -160,8 +160,8 @@ class Corners(Detect):
         """Concatenates and returns predicted bounding boxes and class probabilities."""
         bs = x[0].shape[0]  # batch size
         corners = torch.cat([self.cv4[i](x[i]).view(bs, self.ne, -1) for i in range(self.nl)], 2)  # Corner point logits
-        torch.clamp_(corners, min=0, max=1)
-        #corners = corners.sigmoid()  # Apply the suitable activation function so that corner points are between 0 and 1
+        #torch.clamp_(corners, min=0, max=1)
+        corners = corners.sigmoid()  # Apply the suitable activation function so that corner points are between 0 and 1
         if not self.training:
             self.corners = corners
         x = self.detect(self, x)
