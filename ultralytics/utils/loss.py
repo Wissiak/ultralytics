@@ -751,7 +751,7 @@ class v8CornersLoss(v8DetectionLoss):
         # 75 = 64 (4*16, channel) + 11 (11 corners)
 
         feats, pred_corners = preds if isinstance(preds[0], list) else preds[1]
-        pred_corners = pred_corners.type(torch.float32).detach()
+        pred_corners = pred_corners.type(torch.float32)
 
         #bbox_loss = v8DetectionLoss.__call__(self, feats, batch)
 
