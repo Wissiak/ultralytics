@@ -100,7 +100,7 @@ def scale_corners(corners, factor):
     """
 
     #if corners.shape[0] > 0:
-    #    corners *= img1_shape.view(img1_shape.shape[0], 1, img1_shape.shape[1])
+    #    corners *= np.array(img1_shape[:2]).reshape(1, 1, 2)
 
     return corners * factor
 
@@ -251,7 +251,6 @@ def non_max_suppression(
 
     t = time.time()
     output = [torch.zeros((0, 6 + nm), device=prediction.device)] * bs
-    p_masks = [[]] * prediction.shape[0]
     for xi, x in enumerate(prediction):  # image index, image inference
         # Apply constraints
         # x[((x[:, 2:4] < min_wh) | (x[:, 2:4] > max_wh)).any(1), 4] = 0  # width-height

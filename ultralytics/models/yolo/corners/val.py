@@ -17,7 +17,7 @@ class CornersValidator(DetectionValidator):
         super().__init__(dataloader, save_dir, pbar, args, _callbacks)
         self.args.task = "corners"
         self.metrics = CornersMetrics(save_dir=self.save_dir, plot=True, on_plot=self.on_plot)
-        self.corner_thresholds = 1 - np.array([0.9, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99])
+        self.corner_thresholds = np.array([1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1])
 
     def postprocess(self, preds):
         """Apply Non-maximum suppression to prediction outputs."""
@@ -48,24 +48,21 @@ class CornersValidator(DetectionValidator):
         iou = box_iou(gt_bboxes, detections[:, :4])
         return self.match_predictions(detections[:, 5], gt_cls, iou)
     
-    def _process_corners(self, detections, gt_corners, gt_cls, conf):
-        correct = torch.zeros((detections.shape[0], self.corner_thresholds.shape[0]), dtype=torch.bool, device=detections.device)
-
+    def _process_corners(self, detections, gt_corners, gt_cls):
         pred_classes = detections[:, 5]
         correct_class = gt_cls == pred_classes
-        correct_class = correct_class.view(-1, 1).expand(-1, 24)
 
         pred_corners = detections[:,6:].reshape(-1, 24)
-        pred_corners = pred_corners * correct_class.expand(-1, 24) # zero out corners of wrong classes
-        pred_corners = pred_corners.view(-1, 24)
+        pred_corners = pred_corners[correct_class]
 
         gt_corners = gt_corners.view(-1, 24)
 
-        #dist_per_pred = torch.sum(torch.abs(pred_corners - gt_corners.to(pred_corners.device).expand(pred_corners.shape)), dim=1)
-        dist_per_pred = torch.sum(torch.sqrt(torch.sum((gt_corners.to(pred_corners.device).expand(pred_corners.shape).view(-1,12,2) - pred_corners.view(-1,12,2)) ** 2, dim=-1)), 1)
+        # sum over distances for each corner
+        dist_per_pred = torch.sum(torch.abs(gt_corners.to(pred_corners.device).expand(pred_corners.shape) - pred_corners), 1)
 
+        correct = torch.zeros((detections.shape[0], self.corner_thresholds.shape[0]), dtype=torch.bool, device=detections.device)
         for i, thresh in enumerate(self.corner_thresholds):
-            correct[:,i] = dist_per_pred < thresh
+            correct[correct_class][:,i] = dist_per_pred < thresh
 
         return correct
 

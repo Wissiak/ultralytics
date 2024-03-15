@@ -164,41 +164,44 @@ nc = 11
 max_corners = 12
 img_size = 640
 
-model = YOLO('/Users/patrick/Downloads/trained-corners.pt')
-
-colors = [(np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255)) for _ in range(12)]
-
-for i in range(nc):
-    img = cv2.imread(f'/Users/patrick/projects/digicamp/dataset/test/images/{i}-2.png')
-    ref_pts = all_pts[i]
-   
-    results = model.predict([img], conf=0.5)
-
-    for r_i, r in enumerate(results):
-        annotator = Annotator(img)
+if __name__ == "__main__":
         
-        boxes = r.boxes
-        for box in boxes:
-            b = box.xyxy[0]  # get box coordinates in (left, top, right, bottom) format
-            c = box.cls
-            annotator.box_label(b, model.names[int(c)], colors[c.cpu().numpy().astype(np.uint8)[0]])
-        img = annotator.result()
+    model = YOLO('/Users/patrick/Downloads/trained-corners.pt')
 
-        corners = r.corners
-        for corner in corners.cpu().numpy().astype(np.int32):
-            for i_c, c in enumerate(corner):
-                cv2.circle(img, (int(c[0]), int(c[1])), 5, (0, 255, 0), -1)
-                y_offset = -10 if i_c % 2 == 0 else 10
-                cv2.putText(img, str(i_c), (int(c[0]), int(c[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+    colors = [(np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255)) for _ in range(12)]
 
-            H, mask = cv2.findHomography(srcPoints=ref_pts, dstPoints=corner, method=cv2.RANSAC, ransacReprojThreshold=5.0)
+    for j in range(10):
+        for i in range(nc):
+            img = cv2.imread(f'/Users/patrick/projects/digicamp/dataset/train/images/{i}-{j}.png')
+            ref_pts = all_pts[i]
+        
+            results = model.predict([img], conf=0.5)
+
+            for r_i, r in enumerate(results):
+                annotator = Annotator(img)
+                
+                boxes = r.boxes
+                for box in boxes:
+                    b = box.xyxy[0]  # get box coordinates in (left, top, right, bottom) format
+                    c = box.cls
+                    annotator.box_label(b, model.names[int(c)], colors[c.cpu().numpy().astype(np.uint8)[0]])
+                img = annotator.result()
+
+                corners = r.corners
+                for corner in corners.cpu().numpy().astype(np.int32):
+                    for i_c, c in enumerate(corner):
+                        cv2.circle(img, (int(c[0]), int(c[1])), 5, (0, 255, 0), -1)
+                        y_offset = -10 if i_c % 2 == 0 else 10
+                        cv2.putText(img, str(i_c), (int(c[0]), int(c[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+
+                    H, mask = cv2.findHomography(srcPoints=ref_pts, dstPoints=corner, method=cv2.RANSAC, ransacReprojThreshold=5.0)
 
 
-            transformed_corners = cv2.perspectiveTransform(ref_pts.astype(np.float32).reshape(-1,1,2), H).squeeze()
-            for c in transformed_corners:
-                cv2.circle(img, (int(c[0]), int(c[1])), 5, (0, 0, 255), -1)
-            cv2.imshow(f"würfelnetz-{i}-res-{r_i}.png", img)
-            cv2.waitKey(0)
+                    transformed_corners = cv2.perspectiveTransform(ref_pts.astype(np.float32).reshape(-1,1,2), H).squeeze()
+                    for c in transformed_corners:
+                        cv2.circle(img, (int(c[0]), int(c[1])), 5, (0, 0, 255), -1)
+                    cv2.imshow(f"würfelnetz-{i}-{j}-res-{r_i}.png", img)
+                    cv2.waitKey(0)
 
 
-    #cv2.imwrite(f"test/würfelnetz-{i}.png", img)
+            #cv2.imwrite(f"test/würfelnetz-{i}.png", img)
