@@ -175,7 +175,9 @@ class v8DetectionLoss:
             i = targets[:, 0]  # image index
             _, counts = i.unique(return_counts=True)
             counts = counts.to(dtype=torch.int32)
-            out = torch.ones(batch_size, counts.max(), 5, device=self.device) * -1
+            
+            out = torch.zeros(batch_size, counts.max(), 5, device=self.device)
+            #out = torch.ones(batch_size, counts.max(), 5, device=self.device) * -1
             for j in range(batch_size):
                 matches = i == j
                 n = matches.sum()
