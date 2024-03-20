@@ -901,6 +901,7 @@ class Format:
         return_mask=False,
         return_keypoint=False,
         return_obb=False,
+        return_corners=False,
         mask_ratio=4,
         mask_overlap=True,
         batch_idx=True,
@@ -911,6 +912,7 @@ class Format:
         self.return_mask = return_mask  # set False when training detection only
         self.return_keypoint = return_keypoint
         self.return_obb = return_obb
+        self.return_corners = return_corners
         self.mask_ratio = mask_ratio
         self.mask_overlap = mask_overlap
         self.batch_idx = batch_idx  # keep the batch indexes
@@ -945,6 +947,11 @@ class Format:
             labels["bboxes"] = (
                 xyxyxyxy2xywhr(torch.from_numpy(instances.segments)) if len(instances.segments) else torch.zeros((0, 5))
             )
+        if self.return_corners:
+            if instances.corners is not None:
+                labels["corners"] = torch.from_numpy(instances.corners)
+            else:
+                labels["corners"] = torch.zeros((0, 12, 2))
         # Then we can use collate_fn
         if self.batch_idx:
             labels["batch_idx"] = torch.zeros(nl)

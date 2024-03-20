@@ -17,7 +17,9 @@ class CornersValidator(DetectionValidator):
         super().__init__(dataloader, save_dir, pbar, args, _callbacks)
         self.args.task = "corners"
         self.metrics = CornersMetrics(save_dir=self.save_dir, plot=True, on_plot=self.on_plot)
-        self.corner_thresholds = np.array([1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1])
+        # 95% accuracy = if the predicted pixel is withing 10 pixel radius of the ground truth pixel
+        radius = 10/640
+        self.corner_thresholds = np.array([radius * (10-i) * 12 for i in range(10)])
 
     def postprocess(self, preds):
         """Apply Non-maximum suppression to prediction outputs."""
@@ -60,9 +62,11 @@ class CornersValidator(DetectionValidator):
         # sum over distances for each corner
         dist_per_pred = torch.sum(torch.abs(gt_corners.to(pred_corners.device).expand(pred_corners.shape) - pred_corners), 1)
 
-        correct = torch.zeros((detections.shape[0], self.corner_thresholds.shape[0]), dtype=torch.bool, device=detections.device)
-        for i, thresh in enumerate(self.corner_thresholds):
-            correct[correct_class][:,i] = dist_per_pred < thresh
+        correct = torch.zeros((detections.shape[0], 0), dtype=torch.bool, device=detections.device)
+        for _, thresh in enumerate(self.corner_thresholds):
+            corr_i = torch.zeros(detections.shape[0], device=detections.device, dtype=torch.bool)
+            corr_i[correct_class] = dist_per_pred < thresh
+            correct = torch.cat((correct, corr_i.unsqueeze(1)), 1)
 
         return correct
 
