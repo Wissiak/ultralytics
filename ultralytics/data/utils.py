@@ -98,7 +98,7 @@ def verify_image_label(args):
     # Number (missing, found, empty, corrupt), message, segments, keypoints
     nm, nf, ne, nc, msg, segments, keypoints, corners = 0, 0, 0, 0, "", [], None, None
     if use_corners:
-        corners = np.zeros((0, 12, 2), dtype=np.float32)
+        corners = np.zeros((0, 24, 2), dtype=np.float32)
     try:
         # Verify images
         im = Image.open(im_file)
@@ -130,9 +130,9 @@ def verify_image_label(args):
                     assert lb.shape[1] == (5 + nkpt * ndim), f"labels require {(5 + nkpt * ndim)} columns each"
                     points = lb[:, 5:].reshape(-1, ndim)[:, :2]
                 elif use_corners:
-                    assert lb.shape[1] == 29, f"labels require 29 columns (cls,x,y,w,h,12*2 corner points), {lb.shape[1]} columns detected"
+                    assert lb.shape[1] == 53, f"labels require 29 columns (cls,x,y,w,h,24*2 corner points), {lb.shape[1]} columns detected"
                     points = lb[:, 5:]
-                    corners = points.reshape(-1, 12, 2) # (n, 12, 2) - 12 corners
+                    corners = points.reshape(-1, 24, 2) # (n, 24, 2) - 24 corners
                     lb = lb[:, :5] # remove corners
                 else:
                     assert lb.shape[1] == 5, f"labels require 5 columns, {lb.shape[1]} columns detected"

@@ -36,7 +36,7 @@ class CornersPredictor(DetectionPredictor):
 
         # import cv2
         # width, height = (bboxes[0][:, 2:4] - bboxes[0][:, :2])[0]
-        # for c in bboxes[0][:,-24:]:
+        # for c in bboxes[0][:,-48:]:
         #     img_ = img[0].cpu().numpy().transpose(1, 2, 0)
         #     img_ = img_.copy()
         #     corners = c.cpu().numpy().reshape(-1, 2) * [width, height]
@@ -55,7 +55,7 @@ class CornersPredictor(DetectionPredictor):
             orig_img = orig_imgs[i]
             bbox[:, :4] = ops.scale_boxes(img.shape[2:], bbox[:, :4], orig_img.shape) # xy, xy
             img_path = self.batch[0][i]
-            corners = bbox[:,-24:].reshape(-1, 12, 2)
+            corners = bbox[:,-48:].reshape(-1, 24, 2)
             corners = ops.scale_corners(corners, 640)
 
             #corners += bbox[:,:2].view(bbox[:,:2].shape[0], 1, bbox[:,:2].shape[1]).broadcast_to(corners.shape) # make relative to bounding box

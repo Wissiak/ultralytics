@@ -739,7 +739,7 @@ class v8OBBLoss(v8DetectionLoss):
 class v8CornersLoss(v8DetectionLoss):
     def __init__(self, model):
         super().__init__(model)
-        self.n_corners = 12
+        self.n_corners = 24
         self.hyp.closs = 1  # corner loss gain
         
 
@@ -762,7 +762,7 @@ class v8CornersLoss(v8DetectionLoss):
             (self.reg_max * 4, self.nc), 1
         )
 
-        # pred_corners.shape = (16, 24, 8400) -> 24 = number of extra parameters (ne), (x,y) for 12 corner points 
+        # pred_corners.shape = (16, 48, 8400) -> 48 = number of extra parameters (ne), (x,y) for 24 corner points 
         # pred_scores.shape = (16, 11, 8400)
         # pred_distri.shape = (16, 64, 8400)
 
@@ -818,9 +818,9 @@ class v8CornersLoss(v8DetectionLoss):
         # n is the number of found cube nets in the batch
         # batch_idx = index to the images in the batch where an object was found (n, 1)
         # target_cls = target classes (n, 1)
-        # target_corners = target corners (batch_size, n, 24)
+        # target_corners = target corners (batch_size, n, 48)
 
-        loss = torch.zeros(27, device=self.device)  # box, cls, dfl, corner_loss (2*12)
+        loss = torch.zeros(51, device=self.device)  # box, cls, dfl, corner_loss (2*24)
 
         # Pboxes
         pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
@@ -858,7 +858,7 @@ class v8CornersLoss(v8DetectionLoss):
             # fg_mask is the nms processed mask -> it contains the indices of the boxes that are kept after nms
 
             weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
-            loss[-24:] = torch.sum(torch.abs((gt_corners[fg_mask] - pred_corners[fg_mask]) * weight), dim=0)
+            loss[-48:] = torch.sum(torch.abs((gt_corners[fg_mask] - pred_corners[fg_mask]) * weight), dim=0)
             
             del gt_corners, batch_ind
 
@@ -867,7 +867,7 @@ class v8CornersLoss(v8DetectionLoss):
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
-        loss[-24:] *= self.hyp.closs  # corners gain
+        loss[-48:] *= self.hyp.closs  # corners gain
         
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl, corner_loss)
     
@@ -878,7 +878,7 @@ class v8CornersLoss(v8DetectionLoss):
         else:
             _, counts = batch_idx.unique(return_counts=True)
             counts = counts.to(dtype=torch.int32)
-            out = torch.ones(batch_size, counts.max(), 24, device=self.device) * -1
+            out = torch.ones(batch_size, counts.max(), 48, device=self.device) * -1
             for j in range(batch_size):
                 matches = batch_idx == j
                 n = matches.sum() # n = number of matches in the image
