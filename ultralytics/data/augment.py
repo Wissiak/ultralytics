@@ -951,7 +951,7 @@ class Format:
             if instances.corners is not None:
                 labels["corners"] = torch.from_numpy(instances.corners)
             else:
-                labels["corners"] = torch.zeros((0, 24, 2))
+                labels["corners"] = torch.zeros((0, 14, 2))
         # Then we can use collate_fn
         if self.batch_idx:
             labels["batch_idx"] = torch.zeros(nl)

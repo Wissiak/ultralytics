@@ -19,7 +19,7 @@ class CornersValidator(DetectionValidator):
         self.metrics = CornersMetrics(save_dir=self.save_dir, plot=True, on_plot=self.on_plot)
         # 95% accuracy = if the predicted pixel is withing 10 pixel radius of the ground truth pixel
         radius = 10/640
-        self.corner_thresholds = np.array([radius * (10-i) * 24 for i in range(10)])
+        self.corner_thresholds = np.array([radius * (10-i) * 14 for i in range(10)])
 
     def postprocess(self, preds):
         """Apply Non-maximum suppression to prediction outputs."""
@@ -39,8 +39,8 @@ class CornersValidator(DetectionValidator):
         Return correct prediction matrix.
 
         Args:
-            detections (torch.Tensor): Tensor of shape [N, 6+48] representing detections.
-                Each detection is of the format: x1, y1, x2, y2, conf, class and 24 corner points (x,y).
+            detections (torch.Tensor): Tensor of shape [N, 6+28] representing detections.
+                Each detection is of the format: x1, y1, x2, y2, conf, class and 14 corner points (x,y).
             labels (torch.Tensor): Tensor of shape [M, 5] representing labels.
                 Each label is of the format: class, x1, y1, x2, y2.
 
@@ -54,10 +54,10 @@ class CornersValidator(DetectionValidator):
         pred_classes = detections[:, 5]
         correct_class = gt_cls == pred_classes
 
-        pred_corners = detections[:,6:].reshape(-1, 48)
+        pred_corners = detections[:,6:].reshape(-1, 28)
         pred_corners = pred_corners[correct_class]
 
-        gt_corners = gt_corners.view(-1, 48)
+        gt_corners = gt_corners.view(-1, 28)
 
         # sum over distances for each corner
         dist_per_pred = torch.sum(torch.abs(gt_corners.to(pred_corners.device).expand(pred_corners.shape) - pred_corners), 1)
