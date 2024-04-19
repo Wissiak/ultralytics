@@ -4,13 +4,13 @@ from test_corner_predict import all_pts
 import numpy as np
 
 # Load the YOLOv8 model
-model = YOLO('/Users/patrick/Downloads/trained-corners.pt')
+model = YOLO('/Users/patrick/Downloads/best.pt')
 
 # Open the video file
 video_path = "test-video.mov"
 cap = cv2.VideoCapture(0)
 
-resize=False
+resize=True
 
 # Loop through the video frames
 while cap.isOpened():
@@ -45,13 +45,6 @@ while cap.isOpened():
                     cv2.circle(annotated_frame, (int(c[0]), int(c[1])), 5, (0, 255, 0), -1)
                     y_offset = -10 if i_c % 2 == 0 else 10
                     cv2.putText(annotated_frame, str(i_c), (int(c[0]), int(c[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
-
-                H, mask = cv2.findHomography(srcPoints=ref_pts, dstPoints=corner, method=cv2.RANSAC, ransacReprojThreshold=5.0)
-
-
-                transformed_corners = cv2.perspectiveTransform(ref_pts.astype(np.float32).reshape(-1,1,2), H).squeeze()
-                for c in transformed_corners:
-                    cv2.circle(annotated_frame, (int(c[0]), int(c[1])), 5, (0, 0, 255), -1)
 
         # Display the annotated frame
         if resize:
