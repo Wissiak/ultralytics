@@ -763,7 +763,7 @@ class v8CornersLoss(v8DetectionLoss):
         )
 
         # pred_corners.shape = (16, 28, 8400) -> 28 = number of extra parameters (ne), (x,y) for 14 corner points 
-        # pred_scores.shape = (16, 11, 8400)
+        # pred_scores.shape = (16, 22, 8400) nc = 22
         # pred_distri.shape = (16, 64, 8400)
 
         pred_scores = pred_scores.permute(0, 2, 1).contiguous()
